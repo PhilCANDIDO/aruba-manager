@@ -1,3 +1,5 @@
 collections:
+# Install Ansible.netcommon from Ansible Galaxy
+  - name: ansible.netcommon
   - name: community.general
   - name: arubanetworks.aoscx
