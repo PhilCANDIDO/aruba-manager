@@ -3,8 +3,6 @@
 
 # Paramètres du serveur de dépôt pour le stockage permanent des rapports
 repository_server: ""              # Adresse du serveur de dépôt (obligatoire)
-repository_user: ""                # Utilisateur pour la connexion au serveur de dépôt
-repository_protocol: "sftp"        # Protocole de transfert (sftp, ftp, smb)
 repository_path: "/reports/aruba"  # Chemin sur le serveur de dépôt
 repository_port: 22                # Port pour la connexion (22 pour sftp)
 # repository_password: ""          # À définir via Ansible Vault

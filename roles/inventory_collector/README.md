@@ -35,8 +35,6 @@ Ce rôle collecte automatiquement les informations suivantes pour chaque équipe
 
 | Variable | Description | Valeur par défaut |
 |----------|-------------|-------------------|
-| `repository_protocol` | Protocole de transfert | `"sftp"` |
-| `repository_user` | Utilisateur pour la connexion au serveur | `""` |
 | `repository_port` | Port pour la connexion | `22` |
 | `repository_password` | Mot de passe (à définir via Ansible Vault) | - |
 | `temp_inventory_path` | Chemin temporaire pour les fichiers | Généré automatiquement |
@@ -62,9 +60,7 @@ Ce rôle collecte automatiquement les informations suivantes pour chaque équipe
     
     # Configuration du serveur de dépôt
     repository_server: "repository.example.com"
-    repository_user: "backup"
     repository_path: "/backups/network/aruba"
-    repository_protocol: "sftp"
     
   roles:
     - inventory_collector

@@ -20,54 +20,10 @@
     dest: "{{ repository_path }}/{{ report_filename }}"
     mode: '0644'
   delegate_to: "{{ repository_server }}"
-  when: repository_protocol == 'sftp'
   run_once: true
   tags:
     - transfer
   register: sftp_result
-
-# FTP Transfer (alternative method if SFTP not available)
-- name: (transfer_to_repository) Transfer Excel report via FTP
-  community.general.ftp:
-    host: "{{ repository_server }}"
-    user: "{{ repository_user }}"
-    password: "{{ repository_password | default(omit) }}"
-    src: "{{ temp_excel_file }}"
-    dest: "{{ repository_path }}/{{ report_filename }}"
-    mode: active
-  delegate_to: localhost
-  when: repository_protocol == 'ftp' and not (repository_protocol == 'sftp' and sftp_result is success)
-  run_once: true
-  tags:
-    - transfer
-  register: ftp_result
-
-# SMB/CIFS Transfer (alternative method if SFTP/FTP not available)
-- name: (transfer_to_repository) Transfer Excel report via SMB/CIFS
-  community.windows.win_copy:
-    src: "{{ temp_excel_file }}"
-    dest: "\\\\{{ repository_server }}\\{{ repository_path | regex_replace('/', '\\\\') }}\\{{ report_filename }}"
-  delegate_to: localhost
-  when: >
-    repository_protocol == 'smb' and
-    not (repository_protocol == 'sftp' and sftp_result is success) and
-    not (repository_protocol == 'ftp' and ftp_result is success)
-  run_once: true
-  tags:
-    - transfer
-  register: smb_result
-
-- name: (transfer_to_repository) Display repository report path
-  ansible.builtin.debug:
-    msg: "Rapport d'inventaire transféré avec succès vers {{ repository_server }}:{{ repository_path }}/{{ report_filename }}"
-  run_once: true
-  delegate_to: localhost
-  when: >
-    (repository_protocol == 'sftp' and sftp_result is success) or
-    (repository_protocol == 'ftp' and ftp_result is success) or
-    (repository_protocol == 'smb' and smb_result is success)
-  tags:
-    - transfer
 
 - name: (transfer_to_repository) Cleanup temporary files
   ansible.builtin.file:

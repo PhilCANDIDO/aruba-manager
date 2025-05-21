@@ -9,14 +9,12 @@
     ansible_connection: network_cli
     ansible_network_os: arubanetworks.aoscx.aoscx
     ansible_become: false
-    ansible_user: admin
+    # ansible_user: admin
     # ansible_password: demander via --ask-pass ou définir via fichier vault
     
     # Configuration du serveur de dépôt pour stockage permanent
-    repository_server: "repository.example.com"  # Serveur de dépôt central
-    repository_user: "backup"                    # Utilisateur pour la connexion
+    repository_server: "s-ansible-1"             # Serveur de dépôt central
     repository_path: "/backups/network/aruba"    # Chemin de stockage
-    repository_protocol: "sftp"                  # Protocole de transfert
     # repository_password: défini via vault
   
   roles:
