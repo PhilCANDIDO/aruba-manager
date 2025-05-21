@@ -1,0 +1,123 @@
+---
+# Tâche pour collecter les informations des équipements Aruba
+
+- name: (collect_device_info) Initialize switches data list
+  ansible.builtin.set_fact:
+    inventory_data: []
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - collect
+
+- name: (collect_device_info) Collect information from Aruba AOS-CX switches
+  block:
+    - name: (collect_device_info) Get hostname
+      arubanetworks.aoscx.aoscx_command:
+        commands: "{{ commandes_aoscx.nom_switch }}"
+      register: hostname_result
+      retries: "{{ max_tentatives }}"
+      delay: 10
+      until: hostname_result is not failed
+      tags:
+        - collect
+
+    - name: (collect_device_info) Get model
+      arubanetworks.aoscx.aoscx_command:
+        commands: "{{ commandes_aoscx.modele }}"
+      register: model_result
+      retries: "{{ max_tentatives }}"
+      delay: 10
+      until: model_result is not failed
+      tags:
+        - collect
+
+    - name: (collect_device_info) Get serial number
+      arubanetworks.aoscx.aoscx_command:
+        commands: "{{ commandes_aoscx.serial }}"
+      register: serial_result
+      retries: "{{ max_tentatives }}"
+      delay: 10
+      until: serial_result is not failed
+      tags:
+        - collect
+
+    - name: (collect_device_info) Get OS version
+      arubanetworks.aoscx.aoscx_command:
+        commands: "{{ commandes_aoscx.version_os }}"
+      register: version_result
+      retries: "{{ max_tentatives }}"
+      delay: 10
+      until: version_result is not failed
+      tags:
+        - collect
+
+    - name: (collect_device_info) Extract hostname with regex
+      ansible.builtin.set_fact:
+        hostname_extracted: "{{ hostname_result.stdout[0] | regex_search(regex_extraction.nom_switch, '\\1') | first | default('N/A') }}"
+      tags:
+        - collect
+
+    - name: (collect_device_info) Extract model with regex
+      ansible.builtin.set_fact:
+        model_extracted: "{{ model_result.stdout[0] | regex_search(regex_extraction.modele, '\\1') | first | default('N/A') }}"
+      tags:
+        - collect
+
+    - name: (collect_device_info) Extract serial number with regex
+      ansible.builtin.set_fact:
+        serial_extracted: "{{ serial_result.stdout[0] | regex_search(regex_extraction.serial, '\\1') | first | default('N/A') }}"
+      tags:
+        - collect
+
+    - name: (collect_device_info) Extract OS version with regex
+      ansible.builtin.set_fact:
+        version_extracted: "{{ version_result.stdout[0] | regex_search(regex_extraction.version_os, '\\1') | first | default('N/A') }}"
+      tags:
+        - collect
+
+    - name: (collect_device_info) Create entry for this switch
+      ansible.builtin.set_fact:
+        switch_data:
+          nom_switch: "{{ hostname_extracted }}"
+          modele: "{{ model_extracted }}"
+          serial: "{{ serial_extracted }}"
+          version_os: "{{ version_extracted }}"
+          date_collecte: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+          adresse_ip: "{{ inventory_hostname }}"
+      tags:
+        - collect
+
+    - name: (collect_device_info) Add switch data to inventory list
+      ansible.builtin.set_fact:
+        inventory_data: "{{ inventory_data + [switch_data] }}"
+      delegate_to: localhost
+      run_once: false
+      tags:
+        - collect
+      
+  rescue:
+    - name: (collect_device_info) Record collection failure for this switch
+      ansible.builtin.set_fact:
+        switch_data:
+          nom_switch: "{{ inventory_hostname }}"
+          modele: "ÉCHEC DE COLLECTE"
+          serial: "ÉCHEC DE COLLECTE"
+          version_os: "ÉCHEC DE COLLECTE"
+          date_collecte: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+          adresse_ip: "{{ inventory_hostname }}"
+      tags:
+        - collect
+          
+    - name: (collect_device_info) Add failed switch data to inventory list
+      ansible.builtin.set_fact:
+        inventory_data: "{{ inventory_data + [switch_data] }}"
+      delegate_to: localhost
+      run_once: false
+      tags:
+        - collect
+      
+    - name: (collect_device_info) Log failure
+      ansible.builtin.debug:
+        msg: "ÉCHEC de collecte pour {{ inventory_hostname }}"
+      tags:
+        - collect

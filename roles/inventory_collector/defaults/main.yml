@@ -1,0 +1,34 @@
+---
+# Paramètres par défaut pour le rôle inventory_collector
+
+# Paramètres du serveur de dépôt pour le stockage permanent des rapports
+repository_server: ""              # Adresse du serveur de dépôt (obligatoire)
+repository_user: ""                # Utilisateur pour la connexion au serveur de dépôt
+repository_protocol: "sftp"        # Protocole de transfert (sftp, ftp, smb)
+repository_path: "/reports/aruba"  # Chemin sur le serveur de dépôt
+repository_port: 22                # Port pour la connexion (22 pour sftp)
+# repository_password: ""          # À définir via Ansible Vault
+
+# Fichiers temporaires sur le nœud contrôleur (seront supprimés après transfert)
+temp_inventory_path: "/tmp/aruba_inventory_{{ '%Y%m%d%H%M%S' | strftime }}"
+temp_json_file: "{{ temp_inventory_path }}/inventory_data.json"
+temp_excel_file: "{{ temp_inventory_path }}/inventaire_aruba_{{ '%Y-%m-%d' | strftime }}.xlsx"
+
+# Nom du fichier final sur le serveur de dépôt
+report_filename: "inventaire_aruba_{{ '%Y-%m-%d_%H%M%S' | strftime }}.xlsx"
+
+# Informations à collecter
+collecte_infos:
+  - nom_switch         # Nom du switch
+  - modele             # Modèle du switch
+  - serial             # Numéro de série
+  - version_os         # Version du système d'exploitation
+
+# Limite de tentatives de connexion
+max_tentatives: 3
+
+# Délai d'attente pour les opérations (en secondes)
+delai_attente: 60
+
+# Nettoyage des fichiers temporaires
+cleanup_temp_files: true

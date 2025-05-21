@@ -1,0 +1,34 @@
+---
+# Variables pour le rôle inventory_collector
+
+# Structure des colonnes du fichier Excel
+colonnes_excel:
+  - nom: "Nom du Switch"
+    cle: "nom_switch"
+    largeur: 20
+  - nom: "Modèle"
+    cle: "modele"
+    largeur: 15
+  - nom: "Numéro de Série"
+    cle: "serial"
+    largeur: 20
+  - nom: "Version OS"
+    cle: "version_os"
+    largeur: 15
+  - nom: "Date de Collecte"
+    cle: "date_collecte"
+    largeur: 15
+
+# Commandes spécifiques à Aruba AOS-CX pour récupérer les informations
+commandes_aoscx:
+  nom_switch: "show hostname"
+  modele: "show system | include 'Base Model'"
+  serial: "show system | include 'Serial Number'"
+  version_os: "show version"
+
+# Mappages des regex pour extraire les informations des sorties de commandes
+regex_extraction:
+  nom_switch: "^Hostname\\s*:\\s*(.+)$"
+  modele: "Base Model\\s*:\\s*(.+)$"
+  serial: "Serial Number\\s*:\\s*(.+)$"
+  version_os: "^Version\\s*:\\s*(.+)$"

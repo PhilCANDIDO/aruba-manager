@@ -1,0 +1,11 @@
+---
+# Tests pour le rôle inventory_collector
+
+- name: Test du rôle inventory_collector
+  hosts: test_devices
+  gather_facts: false
+  roles:
+    - role: inventory_collector
+      chemin_inventaire: "/tmp/test_inventaire_aruba.xlsx"
+      max_tentatives: 2
+      delai_attente: 30

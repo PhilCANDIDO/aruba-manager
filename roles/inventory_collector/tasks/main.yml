@@ -1,0 +1,90 @@
+---
+# Tâches principales pour le rôle inventory_collector
+
+- name: (main) Checking prerequisites
+  block:
+    - name: (main) Verify required Python modules
+      ansible.builtin.pip:
+        name: 
+          - openpyxl
+          - pandas
+        state: present
+      delegate_to: localhost
+      become: true
+      register: pip_result
+      failed_when: pip_result is failed
+      tags:
+        - check
+        - always
+  
+    - name: (main) Check Ansible collection for Aruba AOS-CX
+      ansible.builtin.command:
+        cmd: ansible-galaxy collection list arubanetworks.aoscx
+      register: collection_check
+      changed_when: false
+      failed_when: false
+      delegate_to: localhost
+      tags:
+        - check
+        - always
+      
+    - name: (main) Install Aruba AOS-CX collection if missing
+      ansible.builtin.command:
+        cmd: ansible-galaxy collection install arubanetworks.aoscx
+      delegate_to: localhost
+      when: "'arubanetworks.aoscx' not in collection_check.stdout"
+      tags:
+        - check
+        - always
+
+    - name: (main) Verify repository server configuration
+      ansible.builtin.assert:
+        that:
+          - repository_server | length > 0
+        fail_msg: "Le paramètre repository_server est obligatoire pour le stockage permanent des rapports."
+        success_msg: "Configuration du serveur de dépôt validée"
+      tags:
+        - check
+        - always
+
+    - name: (main) Create temporary directory for inventory files
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: "aruba_inventory_"
+      register: temp_dir
+      delegate_to: localhost
+      run_once: true
+      tags:
+        - always
+
+    - name: (main) Set temporary directory path
+      ansible.builtin.set_fact:
+        temp_inventory_path: "{{ temp_dir.path }}"
+      delegate_to: localhost
+      run_once: true
+      tags:
+        - always
+
+- name: (main) Collect device information
+  import_tasks: collect_device_info.yml
+  tags:
+    - collect
+    - always
+
+- name: (main) Validate collected data
+  import_tasks: validate_data.yml
+  tags:
+    - validate
+    - always
+
+- name: (main) Export inventory to Excel
+  import_tasks: export_to_excel.yml
+  tags:
+    - export
+    - always
+
+- name: (main) Transfer to repository server
+  import_tasks: transfer_to_repository.yml
+  tags:
+    - transfer
+    - always

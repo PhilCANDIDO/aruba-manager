@@ -1,0 +1,55 @@
+---
+# Tâche pour valider les données collectées
+
+- name: (validate_data) Consolidate inventory data
+  ansible.builtin.set_fact:
+    consolidated_inventory_data: "{{ hostvars | dict2items | json_query('[*].value.switch_data') | list }}"
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - validate
+
+- name: (validate_data) Verify if data was collected
+  ansible.builtin.assert:
+    that:
+      - consolidated_inventory_data | length > 0
+    fail_msg: "Aucune donnée d'inventaire n'a été collectée. Vérifiez la connectivité aux équipements."
+    success_msg: "{{ consolidated_inventory_data | length }} équipements collectés avec succès"
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - validate
+
+- name: (validate_data) Identify devices with missing data
+  ansible.builtin.set_fact:
+    missing_data_devices: "{{ consolidated_inventory_data | selectattr('modele', 'equalto', 'ÉCHEC DE COLLECTE') | list }}"
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - validate
+
+- name: (validate_data) Log devices with missing data
+  ansible.builtin.debug:
+    msg: "AVERTISSEMENT : {{ missing_data_devices | length }} équipements ont des données manquantes ou incomplètes"
+  when: missing_data_devices | length > 0
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - validate
+
+- name: (validate_data) Check for duplicate serial numbers
+  ansible.builtin.set_fact:
+    duplicate_serials: "{{ consolidated_inventory_data | map(attribute='serial') | select('ne', 'N/A') | select('ne', 'ÉCHEC DE COLLECTE') | groupby('identity') | selectattr('1', 'map', 'length') | selectattr('1', 'map', 'length') | selectattr('1', 'map', 'length') | selectattr('1', 'length', '>', 1) | map(attribute=0) | list }}"
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - validate
+
+- name: (validate_data) Log duplicate serial numbers
+  ansible.builtin.debug:
+    msg: "ATTENTION : Numéros de série en doublon détectés : {{ duplicate_serials | join(', ') }}"
+  when: duplicate_serials | length > 0
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - validate

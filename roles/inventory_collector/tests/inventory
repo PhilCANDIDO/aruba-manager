@@ -1,0 +1,2 @@
+[test_devices]
+localhost ansible_connection=local

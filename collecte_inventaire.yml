@@ -1,0 +1,24 @@
+---
+# collecte_inventaire.yml
+# Playbook pour collecter l'inventaire des switches Aruba AOS-CX
+
+- name: Collect Aruba switches inventory
+  hosts: switches_aruba
+  gather_facts: false
+  vars:
+    ansible_connection: network_cli
+    ansible_network_os: arubanetworks.aoscx.aoscx
+    ansible_become: false
+    ansible_user: admin
+    # ansible_password: demander via --ask-pass ou définir via fichier vault
+    
+    # Configuration du serveur de dépôt pour stockage permanent
+    repository_server: "repository.example.com"  # Serveur de dépôt central
+    repository_user: "backup"                    # Utilisateur pour la connexion
+    repository_path: "/backups/network/aruba"    # Chemin de stockage
+    repository_protocol: "sftp"                  # Protocole de transfert
+    # repository_password: défini via vault
+  
+  roles:
+    - role: inventory_collector
+      # Les variables du rôle peuvent être surchargées ici

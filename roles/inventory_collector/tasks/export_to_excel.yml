@@ -1,0 +1,71 @@
+---
+# Tâche pour exporter les données vers Excel
+
+- name: (export_to_excel) Ensure temporary directory exists
+  ansible.builtin.file:
+    path: "{{ temp_inventory_path }}"
+    state: directory
+    mode: '0755'
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - export
+
+- name: (export_to_excel) Generate intermediate JSON file
+  ansible.builtin.copy:
+    content: "{{ consolidated_inventory_data | to_nice_json }}"
+    dest: "{{ temp_json_file }}"
+  register: json_file
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - export
+
+- name: (export_to_excel) Copy Python inventory exporter script to controller node
+  ansible.builtin.copy:
+    src: inventory_exporter.py
+    dest: "{{ temp_inventory_path }}/inventory_exporter.py"
+    mode: '0755'
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - export
+
+- name: (export_to_excel) Run inventory exporter script
+  ansible.builtin.command:
+    cmd: "python3 {{ temp_inventory_path }}/inventory_exporter.py {{ temp_json_file }} {{ temp_excel_file }}"
+  register: exporter_result
+  failed_when: exporter_result.rc != 0
+  changed_when: true
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - export
+
+- name: (export_to_excel) Check if Excel file was generated
+  ansible.builtin.stat:
+    path: "{{ temp_excel_file }}"
+  register: excel_stat
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - export
+
+- name: (export_to_excel) Display Excel file path
+  ansible.builtin.debug:
+    msg: "Fichier Excel temporaire généré : {{ temp_excel_file }}"
+  when: excel_stat.stat.exists
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - export
+    - debug
+
+- name: (export_to_excel) Log export failure
+  ansible.builtin.fail:
+    msg: "Échec de génération du fichier Excel. Vérifiez les logs pour plus d'informations."
+  when: not excel_stat.stat.exists
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - export
