@@ -24,47 +24,20 @@
 
     - name: (collect_state) Extract current firmware information
       ansible.builtin.set_fact:
-        current_hostname: >-
-          {{
-            current_firmware_facts.ansible_facts.get('ansible_net_hostname', inventory_hostname)
-          }}
-        current_version: >-
-          {{
-            current_firmware_facts.ansible_facts.get('ansible_net_software_version', 'Unknown')
-          }}
-        current_platform: >-
-          {{
-            current_firmware_facts.ansible_facts.get('ansible_net_platform_name', 'Unknown')
-          }}
-        software_images_info: >-
-          {{
-            current_firmware_facts.ansible_facts.get('ansible_net_software_images', {})
-          }}
+        current_hostname: "{{ current_firmware_facts.ansible_facts.get('ansible_net_hostname', inventory_hostname) }}"
+        current_version: "{{ current_firmware_facts.ansible_facts.get('ansible_net_software_version', 'Unknown') }}"
+        current_platform: "{{ current_firmware_facts.ansible_facts.get('ansible_net_platform_name', 'Unknown') }}"
+        software_images_info: "{{ current_firmware_facts.ansible_facts.get('ansible_net_software_images', {}) }}"
       tags:
         - check
 
     - name: (collect_state) Extract partition information
       ansible.builtin.set_fact:
-        primary_image_version: >-
-          {{
-            software_images_info.get('primary_image_version', 'Not installed')
-          }}
-        secondary_image_version: >-
-          {{
-            software_images_info.get('secondary_image_version', 'Not installed')
-          }}
-        default_image: >-
-          {{
-            software_images_info.get('default_image', 'primary')
-          }}
-        primary_image_date: >-
-          {{
-            software_images_info.get('primary_image_date', 'Unknown')
-          }}
-        secondary_image_date: >-
-          {{
-            software_images_info.get('secondary_image_date', 'Unknown')
-          }}
+        primary_image_version: "{{ software_images_info.get('primary_image_version', 'Not installed') }}"
+        secondary_image_version: "{{ software_images_info.get('secondary_image_version', 'Not installed') }}"
+        default_image: "{{ software_images_info.get('default_image', 'primary') }}"
+        primary_image_date: "{{ software_images_info.get('primary_image_date', 'Unknown') }}"
+        secondary_image_date: "{{ software_images_info.get('secondary_image_date', 'Unknown') }}"
       tags:
         - check
 
@@ -75,7 +48,7 @@
       tags:
         - check
 
-    - name: (collect_state) Fallback: collect basic information via CLI
+    - name: (collect_state) Fallback collect basic information via CLI
       block:
         - name: (collect_state) Get firmware info via CLI commands
           arubanetworks.aoscx.aoscx_command:
@@ -89,45 +62,15 @@
 
         - name: (collect_state) Parse CLI output for firmware information
           ansible.builtin.set_fact:
-            current_version: >-
-              {%- set version_output = cli_firmware_info.stdout[0] -%}
-              {%- for line in version_output.split('\n') -%}
-                {%- if 'Version' in line and ':' in line -%}
-                  {{ line.split(':')[1] | trim }}
-                {%- endif -%}
-              {%- endfor -%}
-            current_hostname: >-
-              {%- set hostname_output = cli_firmware_info.stdout[2] -%}
-              {{ hostname_output.strip() }}
+            current_version: "{{ cli_firmware_info.stdout[0] | regex_search('Version\\s*:\\s*(.+)', '\\1') | first | default('Unknown') }}"
+            current_hostname: "{{ cli_firmware_info.stdout[2] | trim }}"
           tags:
             - check
 
         - name: (collect_state) Parse image information from CLI
           ansible.builtin.set_fact:
-            primary_image_version: >-
-              {%- set image_output = cli_firmware_info.stdout[1] -%}
-              {%- for line in image_output.split('\n') -%}
-                {%- if 'Primary' in line and 'Version' in line -%}
-                  {%- set parts = line.split() -%}
-                  {%- for i, part in enumerate(parts) -%}
-                    {%- if 'Version' in part and i+2 < parts|length -%}
-                      {{ parts[i+2] }}
-                    {%- endif -%}
-                  {%- endfor -%}
-                {%- endif -%}
-              {%- endfor -%}
-            secondary_image_version: >-
-              {%- set image_output = cli_firmware_info.stdout[1] -%}
-              {%- for line in image_output.split('\n') -%}
-                {%- if 'Secondary' in line and 'Version' in line -%}
-                  {%- set parts = line.split() -%}
-                  {%- for i, part in enumerate(parts) -%}
-                    {%- if 'Version' in part and i+2 < parts|length -%}
-                      {{ parts[i+2] }}
-                    {%- endif -%}
-                  {%- endfor -%}
-                {%- endif -%}
-              {%- endfor -%}
+            primary_image_version: "{{ cli_firmware_info.stdout[1] | regex_search('Primary.*Version\\s+(\\S+)', '\\1') | first | default('Unknown') }}"
+            secondary_image_version: "{{ cli_firmware_info.stdout[1] | regex_search('Secondary.*Version\\s+(\\S+)', '\\1') | first | default('Unknown') }}"
           tags:
             - check
 
@@ -140,28 +83,21 @@
 
 - name: (collect_state) Validate firmware version format
   ansible.builtin.set_fact:
-    target_version_valid: >-
-      {{ target_firmware_version | regex_search(regex_patterns.version_format) is not none }}
+    target_version_valid: "{{ target_firmware_version | regex_search(regex_patterns.version_format) is not none }}"
   tags:
     - check
 
 - name: (collect_state) Check if target version is already installed
   ansible.builtin.set_fact:
-    already_on_primary: >-
-      {{ primary_image_version == target_firmware_version }}
-    already_on_secondary: >-
-      {{ secondary_image_version == target_firmware_version }}
-    currently_running_target: >-
-      {{ current_version == target_firmware_version }}
+    already_on_primary: "{{ primary_image_version == target_firmware_version }}"
+    already_on_secondary: "{{ secondary_image_version == target_firmware_version }}"
+    currently_running_target: "{{ current_version == target_firmware_version }}"
   tags:
     - check
 
 - name: (collect_state) Determine if update is needed
   ansible.builtin.set_fact:
-    update_needed: >-
-      {{
-        not currently_running_target or force_update | bool
-      }}
+    update_needed: "{{ not currently_running_target or force_update | bool }}"
   tags:
     - check
 
@@ -179,13 +115,7 @@
 
     - name: (collect_state) Parse system uptime
       ansible.builtin.set_fact:
-        system_uptime: >-
-          {%- set uptime_output = system_info.stdout[2] -%}
-          {%- for line in uptime_output.split('\n') -%}
-            {%- if 'up' in line.lower() -%}
-              {{ line.strip() }}
-            {%- endif -%}
-          {%- endfor -%}
+        system_uptime: "{{ system_info.stdout[2] | regex_search('up.*', '') | default('Unknown') }}"
       tags:
         - check
 
