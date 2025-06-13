@@ -13,19 +13,6 @@
   tags:
     - transfer
 
-- name: (transfer_to_repository) Create repository parent directory
-  ansible.builtin.file:
-    path: "{{ repository_path | dirname }}"
-    state: directory
-    mode: '0755'
-  delegate_to: "{{ repository_server }}"
-  run_once: true
-  become: true
-  vars:
-    ansible_become_password: "{{ hostvars[repository_server]['ansible_become_password'] }}"
-  tags:
-    - transfer
-
 - name: (transfer_to_repository) Ensure repository directory exists on target server
   ansible.builtin.file:
     path: "{{ repository_path }}"
@@ -34,8 +21,6 @@
   delegate_to: "{{ repository_server }}"
   run_once: true
   become: true
-  vars:
-    ansible_become_password: "{{ hostvars[repository_server]['ansible_become_password'] }}"
   tags:
     - transfer
 
@@ -56,8 +41,6 @@
   delegate_to: "{{ repository_server }}"
   run_once: true
   become: true
-  vars:
-    ansible_become_password: "{{ hostvars[repository_server]['ansible_become_password'] }}"
   when: excel_file_stat.stat.exists
   register: transfer_result
   tags:
@@ -79,15 +62,6 @@
       - " Chemin: {{ repository_path }}/{{ report_filename }}"
       - " Taille: {{ transferred_file_stat.stat.size }} bytes"
   when: transferred_file_stat.stat.exists
-  run_once: true
-  delegate_to: localhost
-  tags:
-    - transfer
-
-- name: (transfer_to_repository) Log transfer failure
-  ansible.builtin.fail:
-    msg: " Échec du transfert du fichier vers le serveur de dépôt {{ repository_server }}"
-  when: not transferred_file_stat.stat.exists
   run_once: true
   delegate_to: localhost
   tags:
