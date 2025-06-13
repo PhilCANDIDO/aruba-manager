@@ -1,5 +1,5 @@
 ---
-# Tâche pour collecter les informations des équipements Aruba
+# Tâche pour collecter les informations des équipements Aruba via le module aoscx_facts
 
 - name: (collect_device_info) Initialize switches data list
   ansible.builtin.set_fact:
@@ -9,140 +9,52 @@
   tags:
     - collect
 
-- name: (collect_device_info) Collect information from Aruba AOS-CX switches
+- name: (collect_device_info) Collect comprehensive facts from Aruba AOS-CX switches
   block:
-    - name: (collect_device_info) Get hostname
-      arubanetworks.aoscx.aoscx_command:
-        commands: "{{ commandes_aoscx.nom_switch }}"
-      register: hostname_result
+    - name: (collect_device_info) Gather system facts using aoscx_facts module
+      arubanetworks.aoscx.aoscx_facts:
+        gather_subset:
+          - hardware
+          - host_name
+          - platform_name
+          - version
+        gather_network_resources: []
+      register: device_facts
       retries: "{{ max_tentatives }}"
       delay: 10
-      until: hostname_result is not failed
+      until: device_facts is not failed
       tags:
         - collect
 
-    - name: (collect_device_info) Get model
-      arubanetworks.aoscx.aoscx_command:
-        commands: "{{ commandes_aoscx.modele }}"
-      register: model_result
-      retries: "{{ max_tentatives }}"
-      delay: 10
-      until: model_result is not failed
-      tags:
-        - collect
-
-    - name: (collect_device_info) Get serial number
-      arubanetworks.aoscx.aoscx_command:
-        commands: "{{ commandes_aoscx.serial }}"
-      register: serial_result
-      retries: "{{ max_tentatives }}"
-      delay: 10
-      until: serial_result is not failed
-      tags:
-        - collect
-
-    - name: (collect_device_info) Get OS version
-      arubanetworks.aoscx.aoscx_command:
-        commands: "{{ commandes_aoscx.version_os }}"
-      register: version_result
-      retries: "{{ max_tentatives }}"
-      delay: 10
-      until: version_result is not failed
-      tags:
-        - collect
-
-    - name: (collect_device_info) Debug command outputs
+    - name: (collect_device_info) Debug collected facts
       ansible.builtin.debug:
-        msg:
-          - "Hostname output: {{ hostname_result.stdout[0] if hostname_result.stdout else 'No output' }}"
-          - "Model output: {{ model_result.stdout[0] if model_result.stdout else 'No output' }}"
-          - "Serial output: {{ serial_result.stdout[0] if serial_result.stdout else 'No output' }}"
-          - "Version output: {{ version_result.stdout[0] if version_result.stdout else 'No output' }}"
+        var: device_facts.ansible_facts
       tags:
         - collect
         - debug
 
-    - name: (collect_device_info) Extract hostname with regex
+    - name: (collect_device_info) Extract device information from facts
       ansible.builtin.set_fact:
         hostname_extracted: >-
           {{
-            (hostname_result.stdout[0] | regex_search(regex_extraction.nom_switch, '\1')) 
-            | ternary(
-                (hostname_result.stdout[0] | regex_search(regex_extraction.nom_switch, '\1'))[0],
-                inventory_hostname
-              )
+            device_facts.ansible_facts.get('ansible_net_hostname', inventory_hostname)
           }}
-      when: hostname_result.stdout is defined and hostname_result.stdout | length > 0
-      tags:
-        - collect
-
-    - name: (collect_device_info) Set default hostname if extraction failed
-      ansible.builtin.set_fact:
-        hostname_extracted: "{{ inventory_hostname }}"
-      when: hostname_extracted is not defined
-      tags:
-        - collect
-
-    - name: (collect_device_info) Extract model with regex
-      ansible.builtin.set_fact:
         model_extracted: >-
           {{
-            (model_result.stdout[0] | regex_search(regex_extraction.modele, '\1')) 
-            | ternary(
-                (model_result.stdout[0] | regex_search(regex_extraction.modele, '\1'))[0],
-                'N/A'
-              )
+            device_facts.ansible_facts.get('ansible_net_model', 'N/A')
           }}
-      when: model_result.stdout is defined and model_result.stdout | length > 0
-      tags:
-        - collect
-
-    - name: (collect_device_info) Set default model if extraction failed
-      ansible.builtin.set_fact:
-        model_extracted: "N/A"
-      when: model_extracted is not defined
-      tags:
-        - collect
-
-    - name: (collect_device_info) Extract serial number with regex
-      ansible.builtin.set_fact:
         serial_extracted: >-
           {{
-            (serial_result.stdout[0] | regex_search(regex_extraction.serial, '\1')) 
-            | ternary(
-                (serial_result.stdout[0] | regex_search(regex_extraction.serial, '\1'))[0],
-                'N/A'
-              )
+            device_facts.ansible_facts.get('ansible_net_serialnum', 'N/A')
           }}
-      when: serial_result.stdout is defined and serial_result.stdout | length > 0
-      tags:
-        - collect
-
-    - name: (collect_device_info) Set default serial if extraction failed
-      ansible.builtin.set_fact:
-        serial_extracted: "N/A"
-      when: serial_extracted is not defined
-      tags:
-        - collect
-
-    - name: (collect_device_info) Extract OS version with regex
-      ansible.builtin.set_fact:
         version_extracted: >-
           {{
-            (version_result.stdout[0] | regex_search(regex_extraction.version_os, '\1')) 
-            | ternary(
-                (version_result.stdout[0] | regex_search(regex_extraction.version_os, '\1'))[0],
-                'N/A'
-              )
+            device_facts.ansible_facts.get('ansible_net_version', 'N/A')
           }}
-      when: version_result.stdout is defined and version_result.stdout | length > 0
-      tags:
-        - collect
-
-    - name: (collect_device_info) Set default version if extraction failed
-      ansible.builtin.set_fact:
-        version_extracted: "N/A"
-      when: version_extracted is not defined
+        platform_extracted: >-
+          {{
+            device_facts.ansible_facts.get('ansible_net_system', 'N/A')
+          }}
       tags:
         - collect
 
@@ -153,6 +65,7 @@
           modele: "{{ model_extracted }}"
           serial: "{{ serial_extracted }}"
           version_os: "{{ version_extracted }}"
+          platform: "{{ platform_extracted }}"
           date_collecte: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
           adresse_ip: "{{ inventory_hostname }}"
       tags:
@@ -163,8 +76,28 @@
         switch_inventory_data: "{{ switch_data }}"
       tags:
         - collect
+
+    - name: (collect_device_info) Debug extracted data
+      ansible.builtin.debug:
+        msg:
+          - "Switch: {{ hostname_extracted }}"
+          - "Model: {{ model_extracted }}"
+          - "Serial: {{ serial_extracted }}"
+          - "Version: {{ version_extracted }}"
+          - "Platform: {{ platform_extracted }}"
+      tags:
+        - collect
+        - debug
       
   rescue:
+    - name: (collect_device_info) Log connection failure details
+      ansible.builtin.debug:
+        msg: 
+          - "ÉCHEC de collecte pour {{ inventory_hostname }}"
+          - "Erreur: {{ ansible_failed_result.msg | default('Erreur de connexion inconnue') }}"
+      tags:
+        - collect
+
     - name: (collect_device_info) Record collection failure for this switch
       ansible.builtin.set_fact:
         switch_inventory_data:
@@ -172,13 +105,9 @@
           modele: "ÉCHEC DE COLLECTE"
           serial: "ÉCHEC DE COLLECTE"
           version_os: "ÉCHEC DE COLLECTE"
+          platform: "ÉCHEC DE COLLECTE"
           date_collecte: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
           adresse_ip: "{{ inventory_hostname }}"
-      tags:
-        - collect
-      
-    - name: (collect_device_info) Log failure
-      ansible.builtin.debug:
-        msg: "ÉCHEC de collecte pour {{ inventory_hostname }}"
+          erreur: "{{ ansible_failed_result.msg | default('Erreur de connexion') }}"
       tags:
         - collect
