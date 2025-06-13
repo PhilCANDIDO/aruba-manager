@@ -13,17 +13,72 @@
   tags:
     - transfer
 
-# SFTP Transfer
-- name: (transfer_to_repository) Transfer Excel report via SFTP
+- name: (transfer_to_repository) Ensure repository directory exists on target server
+  ansible.builtin.file:
+    path: "{{ repository_path }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ repository_user | default('deploy') }}"
+    group: "{{ repository_user | default('deploy') }}"
+  delegate_to: "{{ repository_server }}"
+  run_once: true
+  become: true
+  tags:
+    - transfer
+
+- name: (transfer_to_repository) Check if Excel file exists locally
+  ansible.builtin.stat:
+    path: "{{ temp_excel_file }}"
+  register: excel_file_stat
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - transfer
+
+- name: (transfer_to_repository) Transfer Excel report to repository server
   ansible.builtin.copy:
     src: "{{ temp_excel_file }}"
     dest: "{{ repository_path }}/{{ report_filename }}"
     mode: '0644'
+    owner: "{{ repository_user | default('deploy') }}"
+    group: "{{ repository_user | default('deploy') }}"
+  delegate_to: "{{ repository_server }}"
+  run_once: true
+  become: true
+  when: excel_file_stat.stat.exists
+  register: transfer_result
+  tags:
+    - transfer
+
+- name: (transfer_to_repository) Verify file transfer success
+  ansible.builtin.stat:
+    path: "{{ repository_path }}/{{ report_filename }}"
+  register: transferred_file_stat
   delegate_to: "{{ repository_server }}"
   run_once: true
   tags:
     - transfer
-  register: sftp_result
+
+- name: (transfer_to_repository) Display transfer success message
+  ansible.builtin.debug:
+    msg: 
+      - " Fichier transféré avec succès vers {{ repository_server }}"
+      - " Chemin: {{ repository_path }}/{{ report_filename }}"
+      - " Taille: {{ transferred_file_stat.stat.size }} bytes"
+  when: transferred_file_stat.stat.exists
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - transfer
+
+- name: (transfer_to_repository) Log transfer failure
+  ansible.builtin.fail:
+    msg: " Échec du transfert du fichier vers le serveur de dépôt {{ repository_server }}"
+  when: not transferred_file_stat.stat.exists
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - transfer
 
 - name: (transfer_to_repository) Cleanup temporary files
   ansible.builtin.file:

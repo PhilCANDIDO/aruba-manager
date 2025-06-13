@@ -13,10 +13,12 @@
     # ansible_password: demander via --ask-pass ou définir via fichier vault
     
     # Configuration du serveur de dépôt pour stockage permanent
-    repository_server: "s-ansible-1"             # Serveur de dépôt central
-    repository_path: "/backups/network/aruba"    # Chemin de stockage
-    # repository_password: défini via vault
+    # Ces variables peuvent être surchargées via l'inventaire ou --extra-vars
+    repository_server: "{{ repository_server | default('ansible_local') }}"
+    repository_path: "{{ repository_path | default('/opt/aruba_reports/inventory') }}"
+    repository_user: "{{ repository_user | default('deploy') }}"
+    # repository_password: défini via vault ou variables d'inventaire
   
   roles:
     - role: inventory_collector
-      # Les variables du rôle peuvent être surchargées ici
+      # Les variables du rôle peuvent être surchargées ici si nécessaire
