@@ -1,13 +1,42 @@
 ---
 # Tâche pour valider les données collectées
 
-- name: (validate_data) Consolidate inventory data
+- name: (validate_data) Ensure jmespath is installed
+  ansible.builtin.pip:
+    name: jmespath
+    state: present
+  delegate_to: localhost
+  become: true
+  run_once: true
+  tags:
+    - validate
+    - always
+
+- name: (validate_data) Consolidate inventory data from all hosts
   ansible.builtin.set_fact:
-    consolidated_inventory_data: "{{ hostvars | dict2items | json_query('[*].value.switch_data') | list }}"
+    consolidated_inventory_data: >-
+      {{
+        groups['all'] 
+        | map('extract', hostvars, 'switch_inventory_data') 
+        | select('defined') 
+        | list
+      }}
   run_once: true
   delegate_to: localhost
   tags:
     - validate
+
+- name: (validate_data) Debug consolidated data
+  ansible.builtin.debug:
+    msg: 
+      - "Total hosts in inventory: {{ groups['all'] | length }}"
+      - "Consolidated data count: {{ consolidated_inventory_data | length }}"
+      - "Sample data: {{ consolidated_inventory_data[:2] if consolidated_inventory_data else 'No data' }}"
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - validate
+    - debug
 
 - name: (validate_data) Verify if data was collected
   ansible.builtin.assert:
@@ -22,7 +51,12 @@
 
 - name: (validate_data) Identify devices with missing data
   ansible.builtin.set_fact:
-    missing_data_devices: "{{ consolidated_inventory_data | selectattr('modele', 'equalto', 'ÉCHEC DE COLLECTE') | list }}"
+    missing_data_devices: >-
+      {{
+        consolidated_inventory_data 
+        | selectattr('modele', 'equalto', 'ÉCHEC DE COLLECTE') 
+        | list
+      }}
   run_once: true
   delegate_to: localhost
   tags:
@@ -39,7 +73,29 @@
 
 - name: (validate_data) Check for duplicate serial numbers
   ansible.builtin.set_fact:
-    duplicate_serials: "{{ consolidated_inventory_data | map(attribute='serial') | select('ne', 'N/A') | select('ne', 'ÉCHEC DE COLLECTE') | groupby('identity') | selectattr('1', 'map', 'length') | selectattr('1', 'map', 'length') | selectattr('1', 'map', 'length') | selectattr('1', 'length', '>', 1) | map(attribute=0) | list }}"
+    all_serials: >-
+      {{
+        consolidated_inventory_data 
+        | map(attribute='serial') 
+        | select('ne', 'N/A') 
+        | select('ne', 'ÉCHEC DE COLLECTE') 
+        | list
+      }}
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - validate
+
+- name: (validate_data) Find duplicate serial numbers
+  ansible.builtin.set_fact:
+    duplicate_serials: >-
+      {{
+        all_serials 
+        | groupby 
+        | selectattr('1', 'length', '>', 1) 
+        | map(attribute='0') 
+        | list
+      }}
   run_once: true
   delegate_to: localhost
   tags:
@@ -49,6 +105,19 @@
   ansible.builtin.debug:
     msg: "ATTENTION : Numéros de série en doublon détectés : {{ duplicate_serials | join(', ') }}"
   when: duplicate_serials | length > 0
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - validate
+
+- name: (validate_data) Generate validation summary
+  ansible.builtin.debug:
+    msg:
+      - "=== RÉSUMÉ DE LA VALIDATION ==="
+      - "Total équipements traités: {{ consolidated_inventory_data | length }}"
+      - "Collectes réussies: {{ (consolidated_inventory_data | length) - (missing_data_devices | length) }}"
+      - "Collectes échouées: {{ missing_data_devices | length }}"
+      - "Numéros de série en doublon: {{ duplicate_serials | length }}"
   run_once: true
   delegate_to: localhost
   tags:

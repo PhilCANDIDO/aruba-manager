@@ -8,11 +8,13 @@
         name: 
           - openpyxl
           - pandas
+          - jmespath
         state: present
       delegate_to: localhost
       become: true
       register: pip_result
       failed_when: pip_result is failed
+      run_once: true
       tags:
         - check
         - always
@@ -24,6 +26,7 @@
       changed_when: false
       failed_when: false
       delegate_to: localhost
+      run_once: true
       tags:
         - check
         - always
@@ -32,6 +35,7 @@
       ansible.builtin.command:
         cmd: ansible-galaxy collection install arubanetworks.aoscx
       delegate_to: localhost
+      run_once: true
       when: "'arubanetworks.aoscx' not in collection_check.stdout"
       tags:
         - check
@@ -43,6 +47,8 @@
           - repository_server | length > 0
         fail_msg: "Le paramètre repository_server est obligatoire pour le stockage permanent des rapports."
         success_msg: "Configuration du serveur de dépôt validée"
+      run_once: true
+      delegate_to: localhost
       tags:
         - check
         - always
@@ -57,9 +63,11 @@
       tags:
         - always
 
-    - name: (main) Set temporary directory path
+    - name: (main) Set temporary directory paths
       ansible.builtin.set_fact:
         temp_inventory_path: "{{ temp_dir.path }}"
+        temp_json_file: "{{ temp_dir.path }}/inventory_data.json"
+        temp_excel_file: "{{ temp_dir.path }}/inventaire_aruba_{{ '%Y-%m-%d_%H%M%S' | strftime }}.xlsx"
       delegate_to: localhost
       run_once: true
       tags:

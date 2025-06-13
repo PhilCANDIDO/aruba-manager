@@ -51,27 +51,98 @@
       tags:
         - collect
 
+    - name: (collect_device_info) Debug command outputs
+      ansible.builtin.debug:
+        msg:
+          - "Hostname output: {{ hostname_result.stdout[0] if hostname_result.stdout else 'No output' }}"
+          - "Model output: {{ model_result.stdout[0] if model_result.stdout else 'No output' }}"
+          - "Serial output: {{ serial_result.stdout[0] if serial_result.stdout else 'No output' }}"
+          - "Version output: {{ version_result.stdout[0] if version_result.stdout else 'No output' }}"
+      tags:
+        - collect
+        - debug
+
     - name: (collect_device_info) Extract hostname with regex
       ansible.builtin.set_fact:
-        hostname_extracted: "{{ hostname_result.stdout[0] | regex_search(regex_extraction.nom_switch, '\\1') | first | default('N/A') }}"
+        hostname_extracted: >-
+          {{
+            (hostname_result.stdout[0] | regex_search(regex_extraction.nom_switch, '\1')) 
+            | ternary(
+                (hostname_result.stdout[0] | regex_search(regex_extraction.nom_switch, '\1'))[0],
+                inventory_hostname
+              )
+          }}
+      when: hostname_result.stdout is defined and hostname_result.stdout | length > 0
+      tags:
+        - collect
+
+    - name: (collect_device_info) Set default hostname if extraction failed
+      ansible.builtin.set_fact:
+        hostname_extracted: "{{ inventory_hostname }}"
+      when: hostname_extracted is not defined
       tags:
         - collect
 
     - name: (collect_device_info) Extract model with regex
       ansible.builtin.set_fact:
-        model_extracted: "{{ model_result.stdout[0] | regex_search(regex_extraction.modele, '\\1') | first | default('N/A') }}"
+        model_extracted: >-
+          {{
+            (model_result.stdout[0] | regex_search(regex_extraction.modele, '\1')) 
+            | ternary(
+                (model_result.stdout[0] | regex_search(regex_extraction.modele, '\1'))[0],
+                'N/A'
+              )
+          }}
+      when: model_result.stdout is defined and model_result.stdout | length > 0
+      tags:
+        - collect
+
+    - name: (collect_device_info) Set default model if extraction failed
+      ansible.builtin.set_fact:
+        model_extracted: "N/A"
+      when: model_extracted is not defined
       tags:
         - collect
 
     - name: (collect_device_info) Extract serial number with regex
       ansible.builtin.set_fact:
-        serial_extracted: "{{ serial_result.stdout[0] | regex_search(regex_extraction.serial, '\\1') | first | default('N/A') }}"
+        serial_extracted: >-
+          {{
+            (serial_result.stdout[0] | regex_search(regex_extraction.serial, '\1')) 
+            | ternary(
+                (serial_result.stdout[0] | regex_search(regex_extraction.serial, '\1'))[0],
+                'N/A'
+              )
+          }}
+      when: serial_result.stdout is defined and serial_result.stdout | length > 0
+      tags:
+        - collect
+
+    - name: (collect_device_info) Set default serial if extraction failed
+      ansible.builtin.set_fact:
+        serial_extracted: "N/A"
+      when: serial_extracted is not defined
       tags:
         - collect
 
     - name: (collect_device_info) Extract OS version with regex
       ansible.builtin.set_fact:
-        version_extracted: "{{ version_result.stdout[0] | regex_search(regex_extraction.version_os, '\\1') | first | default('N/A') }}"
+        version_extracted: >-
+          {{
+            (version_result.stdout[0] | regex_search(regex_extraction.version_os, '\1')) 
+            | ternary(
+                (version_result.stdout[0] | regex_search(regex_extraction.version_os, '\1'))[0],
+                'N/A'
+              )
+          }}
+      when: version_result.stdout is defined and version_result.stdout | length > 0
+      tags:
+        - collect
+
+    - name: (collect_device_info) Set default version if extraction failed
+      ansible.builtin.set_fact:
+        version_extracted: "N/A"
+      when: version_extracted is not defined
       tags:
         - collect
 
@@ -87,32 +158,22 @@
       tags:
         - collect
 
-    - name: (collect_device_info) Add switch data to inventory list
+    - name: (collect_device_info) Store switch data in host vars
       ansible.builtin.set_fact:
-        inventory_data: "{{ inventory_data + [switch_data] }}"
-      delegate_to: localhost
-      run_once: false
+        switch_inventory_data: "{{ switch_data }}"
       tags:
         - collect
       
   rescue:
     - name: (collect_device_info) Record collection failure for this switch
       ansible.builtin.set_fact:
-        switch_data:
+        switch_inventory_data:
           nom_switch: "{{ inventory_hostname }}"
           modele: "ÉCHEC DE COLLECTE"
           serial: "ÉCHEC DE COLLECTE"
           version_os: "ÉCHEC DE COLLECTE"
           date_collecte: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
           adresse_ip: "{{ inventory_hostname }}"
-      tags:
-        - collect
-          
-    - name: (collect_device_info) Add failed switch data to inventory list
-      ansible.builtin.set_fact:
-        inventory_data: "{{ inventory_data + [switch_data] }}"
-      delegate_to: localhost
-      run_once: false
       tags:
         - collect
       
