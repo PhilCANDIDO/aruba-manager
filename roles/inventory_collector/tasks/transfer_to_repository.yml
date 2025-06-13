@@ -13,16 +13,29 @@
   tags:
     - transfer
 
+- name: (transfer_to_repository) Create repository parent directory
+  ansible.builtin.file:
+    path: "{{ repository_path | dirname }}"
+    state: directory
+    mode: '0755'
+  delegate_to: "{{ repository_server }}"
+  run_once: true
+  become: true
+  vars:
+    ansible_become_password: "{{ hostvars[repository_server]['ansible_become_password'] }}"
+  tags:
+    - transfer
+
 - name: (transfer_to_repository) Ensure repository directory exists on target server
   ansible.builtin.file:
     path: "{{ repository_path }}"
     state: directory
     mode: '0755'
-    owner: "{{ repository_user | default('deploy') }}"
-    group: "{{ repository_user | default('deploy') }}"
   delegate_to: "{{ repository_server }}"
   run_once: true
   become: true
+  vars:
+    ansible_become_password: "{{ hostvars[repository_server]['ansible_become_password'] }}"
   tags:
     - transfer
 
@@ -40,11 +53,11 @@
     src: "{{ temp_excel_file }}"
     dest: "{{ repository_path }}/{{ report_filename }}"
     mode: '0644'
-    owner: "{{ repository_user | default('deploy') }}"
-    group: "{{ repository_user | default('deploy') }}"
   delegate_to: "{{ repository_server }}"
   run_once: true
   become: true
+  vars:
+    ansible_become_password: "{{ hostvars[repository_server]['ansible_become_password'] }}"
   when: excel_file_stat.stat.exists
   register: transfer_result
   tags:
