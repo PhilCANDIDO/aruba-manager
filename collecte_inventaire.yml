@@ -11,13 +11,6 @@
     ansible_become: false
     # ansible_user: admin
     # ansible_password: demander via --ask-pass ou définir via fichier vault
-    
-    # Configuration du serveur de dépôt pour stockage permanent
-    # Ces variables peuvent être surchargées via l'inventaire ou --extra-vars
-    repository_server: "{{ repository_server | default('ansible_local') }}"
-    repository_path: "{{ repository_path | default('/opt/aruba_reports/inventory') }}"
-    repository_user: "{{ repository_user | default('deploy') }}"
-    # repository_password: défini via vault ou variables d'inventaire
   
   roles:
     - role: inventory_collector

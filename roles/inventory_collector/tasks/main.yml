@@ -1,5 +1,6 @@
 ---
 # Tâches principales pour le rôle inventory_collector
+
 ## DEBUG
 - name: (debug) Test aoscx_facts with minimal subset
   arubanetworks.aoscx.aoscx_facts:
@@ -77,9 +78,10 @@
     - name: (main) Verify repository server configuration
       ansible.builtin.assert:
         that:
+          - repository_server is defined
           - repository_server | length > 0
         fail_msg: "Le paramètre repository_server est obligatoire pour le stockage permanent des rapports."
-        success_msg: "Configuration du serveur de dépôt validée"
+        success_msg: "Configuration du serveur de dépôt validée: {{ repository_server }}"
       run_once: true
       delegate_to: localhost
       tags:
