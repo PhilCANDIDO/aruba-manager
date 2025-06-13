@@ -8,6 +8,7 @@ ansible-vaults/
 /inventory.ini
 /inventory/*/*.ini
 hosts.yml
+switches.yml
 /inventory/*/*.yml
 # Mais garder les exemples d'inventaire
 !/examples/inventory.ini
