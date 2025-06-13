@@ -1,0 +1,180 @@
+---
+# Tâches de détermination de la stratégie de mise à jour
+
+- name: (strategy) Analyze current partition usage
+  ansible.builtin.set_fact:
+    current_boot_partition: >-
+      {{ 'primary' if default_image == 'primary' else 'secondary' }}
+    alternate_partition: >-
+      {{ 'secondary' if default_image == 'primary' else 'primary' }}
+  tags:
+    - check
+
+- name: (strategy) Determine target partition based on strategy
+  block:
+    - name: (strategy) Auto strategy - choose optimal partition
+      ansible.builtin.set_fact:
+        chosen_partition: >-
+          {%- if partition_strategy == "auto" -%}
+            {%- if already_on_primary and not already_on_secondary -%}
+              primary
+            {%- elif already_on_secondary and not already_on_primary -%}
+              secondary
+            {%- elif not already_on_primary and not already_on_secondary -%}
+              {{ alternate_partition }}
+            {%- else -%}
+              {{ alternate_partition }}
+            {%- endif -%}
+          {%- else -%}
+            {{ partition_strategy }}
+          {%- endif -%}
+      tags:
+        - check
+
+    - name: (strategy) Validate chosen partition
+      ansible.builtin.assert:
+        that:
+          - chosen_partition in ['primary', 'secondary']
+        fail_msg: "Partition choisie invalide: {{ chosen_partition }}"
+        success_msg: "Partition cible validée: {{ chosen_partition }}"
+      tags:
+        - check
+
+  rescue:
+    - name: (strategy) Handle strategy determination failure
+      ansible.builtin.set_fact:
+        update_errors: "{{ update_errors + ['Strategy determination failed: ' + (ansible_failed_result.msg | default('Unknown error'))] }}"
+        chosen_partition: "secondary"  # Fallback to secondary
+      tags:
+        - check
+
+- name: (strategy) Check if firmware already exists on target partition
+  ansible.builtin.set_fact:
+    firmware_already_on_target: >-
+      {{
+        (chosen_partition == 'primary' and already_on_primary) or
+        (chosen_partition == 'secondary' and already_on_secondary)
+      }}
+  tags:
+    - check
+
+- name: (strategy) Determine if reboot will be needed
+  ansible.builtin.set_fact:
+    reboot_needed: >-
+      {{
+        chosen_partition != current_boot_partition or
+        not firmware_already_on_target
+      }}
+    will_change_boot_partition: >-
+      {{ chosen_partition != current_boot_partition }}
+  tags:
+    - check
+
+- name: (strategy) Calculate estimated update time
+  ansible.builtin.set_fact:
+    estimated_upload_time: >-
+      {%- set platform = current_platform | default('default') -%}
+      {%- for model, timeout in model_specific_timeouts.upload.items() -%}
+        {%- if model in platform -%}
+          {{ timeout }}
+        {%- endif -%}
+      {%- else -%}
+        {{ model_specific_timeouts.upload.default }}
+      {%- endfor -%}
+    estimated_reboot_time: >-
+      {%- set platform = current_platform | default('default') -%}
+      {%- for model, timeout in model_specific_timeouts.reboot.items() -%}
+        {%- if model in platform -%}
+          {{ timeout }}
+        {%- endif -%}
+      {%- else -%}
+        {{ model_specific_timeouts.reboot.default }}
+      {%- endfor -%}
+  tags:
+    - check
+
+- name: (strategy) Assess update risks
+  ansible.builtin.set_fact:
+    update_risks:
+      - name: "Service interruption"
+        severity: "{{ 'high' if reboot_needed else 'low' }}"
+        description: "{{ 'Switch will reboot and lose connectivity' if reboot_needed else 'No reboot required' }}"
+      - name: "Boot partition change"
+        severity: "{{ 'medium' if will_change_boot_partition else 'none' }}"
+        description: "{{ 'Default boot partition will change' if will_change_boot_partition else 'Boot partition unchanged' }}"
+      - name: "Disk space usage"
+        severity: "{{ 'medium' if (current_free_space | default(0) | int) < 1500 else 'low' }}"
+        description: "{{ 'Limited free space available' if (current_free_space | default(0) | int) < 1500 else 'Sufficient disk space' }}"
+      - name: "Rollback capability"
+        severity: "{{ 'low' if alternate_partition != chosen_partition else 'medium' }}"
+        description: "{{ 'Previous version available for rollback' if alternate_partition != chosen_partition else 'Rollback partition will be overwritten' }}"
+  tags:
+    - check
+
+- name: (strategy) Create update plan
+  ansible.builtin.set_fact:
+    update_plan:
+      target_version: "{{ target_firmware_version }}"
+      chosen_partition: "{{ chosen_partition }}"
+      current_boot_partition: "{{ current_boot_partition }}"
+      reboot_needed: "{{ reboot_needed }}"
+      upload_needed: "{{ not firmware_already_on_target }}"
+      estimated_total_time: "{{ (estimated_upload_time | int) + (estimated_reboot_time | int if reboot_needed else 0) }}"
+      backup_required: "{{ backup_config | bool }}"
+      rollback_available: "{{ alternate_partition != chosen_partition }}"
+      risks: "{{ update_risks }}"
+  tags:
+    - check
+
+- name: (strategy) Display update strategy
+  ansible.builtin.debug:
+    msg:
+      - "=== STRATÉGIE DE MISE À JOUR ==="
+      - "Switch: {{ current_hostname }}"
+      - "Version actuelle: {{ current_version }}"
+      - "Version cible: {{ target_firmware_version }}"
+      - "Partition actuelle: {{ current_boot_partition }}"
+      - "Partition cible: {{ chosen_partition }}"
+      - "Upload nécessaire: {{ update_plan.upload_needed | ternary('OUI', 'NON') }}"
+      - "Redémarrage nécessaire: {{ reboot_needed | ternary('OUI', 'NON') }}"
+      - "Changement partition boot: {{ will_change_boot_partition | ternary('OUI', 'NON') }}"
+      - "Temps estimé total: {{ update_plan.estimated_total_time }}s ({{ (update_plan.estimated_total_time | int / 60) | round(1) }}min)"
+      - "Rollback disponible: {{ update_plan.rollback_available | ternary('OUI', 'NON') }}"
+      - "Risques identifiés: {{ update_risks | selectattr('severity', 'ne', 'none') | list | length }}"
+  tags:
+    - check
+
+- name: (strategy) Confirm high-risk update
+  ansible.builtin.pause:
+    prompt: |
+      ATTENTION: Cette mise à jour présente des risques élevés:
+      {% for risk in update_risks %}
+      {% if risk.severity in ['high', 'medium'] %}
+      - {{ risk.name }}: {{ risk.description }}
+      {% endif %}
+      {% endfor %}
+      
+      Voulez-vous continuer? (yes/no)
+  register: user_confirmation
+  when: 
+    - update_risks | selectattr('severity', 'equalto', 'high') | list | length > 0
+    - not force_update | bool
+  delegate_to: localhost
+  tags:
+    - check
+    - never  # Only run in interactive mode
+
+- name: (strategy) Abort on user rejection
+  ansible.builtin.fail:
+    msg: "Mise à jour annulée par l'utilisateur"
+  when: 
+    - user_confirmation is defined
+    - user_confirmation.user_input | lower not in ['yes', 'y', 'oui', 'o']
+  tags:
+    - check
+
+- name: (strategy) Store strategy for reporting
+  ansible.builtin.set_fact:
+    firmware_update_strategy: "{{ update_plan }}"
+  tags:
+    - check

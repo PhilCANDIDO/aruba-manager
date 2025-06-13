@@ -1,0 +1,260 @@
+---
+# Tâches d'upload du firmware
+
+- name: (upload) Skip firmware upload if already present
+  block:
+    - name: (upload) Check if upload can be skipped
+      ansible.builtin.debug:
+        msg: "Firmware {{ target_firmware_version }} déjà présent sur partition {{ chosen_partition }}, upload ignoré"
+      when: firmware_already_on_target and not force_update | bool
+      tags:
+        - upload
+
+    - name: (upload) End upload tasks if not needed
+      ansible.builtin.meta: end_play
+      when: firmware_already_on_target and not force_update | bool
+      tags:
+        - upload
+
+- name: (upload) Prepare firmware upload
+  block:
+    - name: (upload) Record upload start time
+      ansible.builtin.set_fact:
+        upload_start_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+      tags:
+        - upload
+
+    - name: (upload) Validate firmware file before upload
+      ansible.builtin.stat:
+        path: "{{ firmware_file_path }}"
+        checksum_algorithm: sha256
+      register: firmware_file_info
+      delegate_to: localhost
+      when: upload_method == "local"
+      tags:
+        - upload
+
+    - name: (upload) Store firmware checksum for verification
+      ansible.builtin.set_fact:
+        firmware_checksum: "{{ firmware_file_info.stat.checksum | default('N/A') }}"
+        firmware_size_mb: "{{ (firmware_file_info.stat.size | default(0) / 1024 / 1024) | round(1) }}"
+      when: upload_method == "local"
+      tags:
+        - upload
+
+    - name: (upload) Display upload information
+      ansible.builtin.debug:
+        msg:
+          - "=== DÉBUT DE L'UPLOAD FIRMWARE ==="
+          - "Switch: {{ current_hostname }}"
+          - "Fichier: {{ firmware_file_path if upload_method == 'local' else remote_firmware_url }}"
+          - "Taille: {{ firmware_size_mb | default('Inconnue') }}MB"
+          - "Partition cible: {{ chosen_partition }}"
+          - "Méthode: {{ upload_method | upper }}"
+          - "Timeout configuré: {{ estimated_upload_time }}s"
+          - "Checksum: {{ firmware_checksum | default('N/A') }}"
+      tags:
+        - upload
+
+- name: (upload) Upload firmware to switch
+  block:
+    - name: (upload) Upload firmware from local file
+      arubanetworks.aoscx.aoscx_upload_firmware:
+        partition_name: "{{ chosen_partition }}"
+        firmware_file_path: "{{ firmware_file_path }}"
+        wait_firmware_upload: true
+      register: firmware_upload_result
+      async: "{{ estimated_upload_time | int + 300 }}"  # Add 5 minutes buffer
+      poll: 30
+      when: upload_method == "local"
+      tags:
+        - upload
+
+    - name: (upload) Upload firmware from remote URL
+      arubanetworks.aoscx.aoscx_upload_firmware:
+        partition_name: "{{ chosen_partition }}"
+        remote_firmware_file_path: "{{ remote_firmware_url }}"
+        vrf: "{{ management_vrf }}"
+        wait_firmware_upload: true
+      register: firmware_upload_result
+      async: "{{ estimated_upload_time | int + 300 }}"
+      poll: 30
+      when: upload_method == "remote"
+      tags:
+        - upload
+
+    - name: (upload) Record upload completion time
+      ansible.builtin.set_fact:
+        upload_end_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+        upload_duration: "{{ ((upload_end_time | to_datetime) - (upload_start_time | to_datetime)).total_seconds() | int }}"
+      tags:
+        - upload
+
+    - name: (upload) Display upload success
+      ansible.builtin.debug:
+        msg:
+          - "✓ Upload firmware terminé avec succès"
+          - "Durée: {{ upload_duration }}s ({{ (upload_duration / 60) | round(1) }}min)"
+          - "Partition: {{ chosen_partition }}"
+      tags:
+        - upload
+
+  rescue:
+    - name: (upload) Handle upload failure
+      ansible.builtin.set_fact:
+        upload_end_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+        update_errors: "{{ update_errors + ['Firmware upload failed: ' + (ansible_failed_result.msg | default('Unknown upload error'))] }}"
+        update_status: "upload_failed"
+      tags:
+        - upload
+
+    - name: (upload) Log upload failure details
+      ansible.builtin.debug:
+        msg:
+          - "✗ ÉCHEC de l'upload firmware"
+          - "Partition cible: {{ chosen_partition }}"
+          - "Erreur: {{ ansible_failed_result.msg | default('Erreur inconnue') }}"
+          - "Durée avant échec: {{ upload_duration | default('N/A') }}s"
+      tags:
+        - upload
+
+    - name: (upload) Retry upload on certain errors
+      block:
+        - name: (upload) Check if retry is appropriate
+          ansible.builtin.set_fact:
+            should_retry: >-
+              {{
+                ('timeout' in ansible_failed_result.msg | lower) or
+                ('connection' in ansible_failed_result.msg | lower) or
+                ('502' in ansible_failed_result.msg | default(''))
+              }}
+          tags:
+            - upload
+
+        - name: (upload) Retry firmware upload with extended timeout
+          arubanetworks.aoscx.aoscx_upload_firmware:
+            partition_name: "{{ chosen_partition }}"
+            firmware_file_path: "{{ firmware_file_path if upload_method == 'local' else omit }}"
+            remote_firmware_file_path: "{{ remote_firmware_url if upload_method == 'remote' else omit }}"
+            vrf: "{{ management_vrf if upload_method == 'remote' else omit }}"
+            wait_firmware_upload: true
+          register: retry_upload_result
+          async: "{{ (estimated_upload_time | int) * 2 }}"  # Double the timeout
+          poll: 60
+          retries: 1
+          when: should_retry | bool
+          tags:
+            - upload
+
+        - name: (upload) Update status on successful retry
+          ansible.builtin.set_fact:
+            firmware_upload_result: "{{ retry_upload_result }}"
+            upload_end_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+            upload_duration: "{{ ((upload_end_time | to_datetime) - (upload_start_time | to_datetime)).total_seconds() | int }}"
+            update_errors: "{{ update_errors[:-1] }}"  # Remove last error
+          when: 
+            - should_retry | bool
+            - retry_upload_result is succeeded
+          tags:
+            - upload
+
+      rescue:
+        - name: (upload) Final upload failure
+          ansible.builtin.fail:
+            msg: "Échec définitif de l'upload firmware après tentatives de récupération"
+          tags:
+            - upload
+
+- name: (upload) Verify firmware upload
+  block:
+    - name: (upload) Wait for upload completion verification
+      ansible.builtin.pause:
+        seconds: 30
+      tags:
+        - upload
+
+    - name: (upload) Verify firmware was uploaded successfully
+      arubanetworks.aoscx.aoscx_facts:
+        gather_subset:
+          - software_images
+      register: post_upload_facts
+      retries: 3
+      delay: 10
+      tags:
+        - upload
+
+    - name: (upload) Extract updated partition information
+      ansible.builtin.set_fact:
+        updated_primary_version: >-
+          {{
+            post_upload_facts.ansible_facts.get('ansible_net_software_images', {}).get('primary_image_version', 'Unknown')
+          }}
+        updated_secondary_version: >-
+          {{
+            post_upload_facts.ansible_facts.get('ansible_net_software_images', {}).get('secondary_image_version', 'Unknown')
+          }}
+      tags:
+        - upload
+
+    - name: (upload) Verify target firmware is on target partition
+      ansible.builtin.assert:
+        that:
+          - >-
+            (chosen_partition == 'primary' and updated_primary_version == target_firmware_version) or
+            (chosen_partition == 'secondary' and updated_secondary_version == target_firmware_version)
+        fail_msg: "Firmware upload verification failed - target version not found on partition {{ chosen_partition }}"
+        success_msg: "✓ Firmware upload verified successfully on partition {{ chosen_partition }}"
+      when: verify_upload | bool
+      tags:
+        - upload
+
+    - name: (upload) Store upload verification results
+      ansible.builtin.set_fact:
+        upload_verification:
+          verified: true
+          primary_version: "{{ updated_primary_version }}"
+          secondary_version: "{{ updated_secondary_version }}"
+          target_on_partition: >-
+            {{
+              (chosen_partition == 'primary' and updated_primary_version == target_firmware_version) or
+              (chosen_partition == 'secondary' and updated_secondary_version == target_firmware_version)
+            }}
+      tags:
+        - upload
+
+  rescue:
+    - name: (upload) Handle verification failure
+      ansible.builtin.set_fact:
+        update_errors: "{{ update_errors + ['Upload verification failed: ' + (ansible_failed_result.msg | default('Unable to verify upload'))] }}"
+        upload_verification:
+          verified: false
+          error: "{{ ansible_failed_result.msg | default('Verification failed') }}"
+      tags:
+        - upload
+
+    - name: (upload) Continue despite verification failure
+      ansible.builtin.debug:
+        msg: "ATTENTION: Impossible de vérifier l'upload, mais continuation du processus"
+      when: not verify_upload | bool
+      tags:
+        - upload
+
+    - name: (upload) Fail on verification error if required
+      ansible.builtin.fail:
+        msg: "Échec de la vérification de l'upload firmware"
+      when: verify_upload | bool
+      tags:
+        - upload
+
+- name: (upload) Upload completion summary
+  ansible.builtin.debug:
+    msg:
+      - "=== RÉSUMÉ DE L'UPLOAD ==="
+      - "Statut: {{ '✓ SUCCÈS' if firmware_upload_result is succeeded else '✗ ÉCHEC' }}"
+      - "Partition: {{ chosen_partition }}"
+      - "Durée: {{ upload_duration | default('N/A') }}s"
+      - "Vérification: {{ '✓' if upload_verification.verified | default(false) else '✗' }}"
+      - "Version Primary: {{ updated_primary_version | default('N/A') }}"
+      - "Version Secondary: {{ updated_secondary_version | default('N/A') }}"
+  tags:
+    - upload

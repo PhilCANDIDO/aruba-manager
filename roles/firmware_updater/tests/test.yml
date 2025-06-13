@@ -1,0 +1,30 @@
+---
+# Tests pour le rôle firmware_updater
+
+- name: Test du rôle firmware_updater
+  hosts: test_switches
+  gather_facts: false
+  vars:
+    ansible_connection: arubanetworks.aoscx.aoscx
+    ansible_network_os: arubanetworks.aoscx.aoscx
+    ansible_become: false
+    
+    # Configuration de test
+    firmware_file_path: "/tmp/test_firmware.swi"
+    target_firmware_version: "LL.10.10.1040"
+    repository_server: "test-backup.local"
+    repository_path: "/tmp/test_backups"
+    
+    # Options pour les tests
+    partition_strategy: "auto"
+    backup_config: true
+    verify_post_update: true
+    rollback_on_failure: true
+    force_update: false
+    
+    # Timeouts réduits pour les tests
+    max_upload_time: 300
+    max_reboot_time: 180
+    
+  roles:
+    - role: firmware_updater

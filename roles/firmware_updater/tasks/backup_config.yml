@@ -1,0 +1,258 @@
+---
+# Tâches de sauvegarde de la configuration avant mise à jour
+
+- name: (backup) Initialize backup process
+  ansible.builtin.set_fact:
+    backup_start_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+    backup_filename: "config_backup_{{ inventory_hostname }}_{{ '%Y%m%d_%H%M%S' | strftime }}.cfg"
+  tags:
+    - backup
+
+- name: (backup) Display backup information
+  ansible.builtin.debug:
+    msg:
+      - "=== SAUVEGARDE DE LA CONFIGURATION ==="
+      - "Switch: {{ current_hostname }}"
+      - "Méthode: {{ backup_method | upper }}"
+      - "Fichier: {{ backup_filename }}"
+      - "Serveur de dépôt: {{ repository_server if repository_server | length > 0 else 'Local uniquement' }}"
+  tags:
+    - backup
+
+- name: (backup) Create backup via local method
+  block:
+    - name: (backup) Backup running config to local temporary file
+      arubanetworks.aoscx.aoscx_config:
+        backup: true
+        backup_options:
+          filename: "{{ temp_backup_file }}"
+          dir_path: "{{ temp_update_path }}"
+      register: local_backup_result
+      delegate_to: localhost
+      when: backup_method == "local"
+      tags:
+        - backup
+
+    - name: (backup) Verify local backup file exists
+      ansible.builtin.stat:
+        path: "{{ temp_backup_file }}"
+      register: backup_file_stat
+      delegate_to: localhost
+      when: backup_method == "local"
+      tags:
+        - backup
+
+    - name: (backup) Assert backup file was created
+      ansible.builtin.assert:
+        that:
+          - backup_file_stat.stat.exists
+          - backup_file_stat.stat.size > 0
+        fail_msg: "Fichier de sauvegarde local non créé ou vide"
+        success_msg: "✓ Sauvegarde locale créée: {{ backup_file_stat.stat.size }} bytes"
+      when: backup_method == "local"
+      tags:
+        - backup
+
+  rescue:
+    - name: (backup) Handle local backup failure
+      ansible.builtin.set_fact:
+        update_errors: "{{ update_errors + ['Local backup failed: ' + (ansible_failed_result.msg | default('Unknown backup error'))] }}"
+      tags:
+        - backup
+
+    - name: (backup) Continue despite backup failure
+      ansible.builtin.debug:
+        msg: "ATTENTION: Échec de la sauvegarde locale, mais continuation du processus"
+      tags:
+        - backup
+
+- name: (backup) Create backup via TFTP method
+  block:
+    - name: (backup) Backup running config to TFTP server
+      arubanetworks.aoscx.aoscx_backup_config:
+        config_name: 'running-config'
+        remote_output_file_tftp_path: "tftp://{{ repository_server }}/{{ backup_filename }}"
+        config_type: 'cli'
+        vrf: "{{ management_vrf }}"
+      register: tftp_backup_result
+      when: backup_method == "tftp"
+      tags:
+        - backup
+
+    - name: (backup) Verify TFTP backup completion
+      ansible.builtin.debug:
+        msg: "✓ Sauvegarde TFTP terminée vers {{ repository_server }}"
+      when: 
+        - backup_method == "tftp"
+        - tftp_backup_result is succeeded
+      tags:
+        - backup
+
+  rescue:
+    - name: (backup) Handle TFTP backup failure
+      ansible.builtin.set_fact:
+        update_errors: "{{ update_errors + ['TFTP backup failed: ' + (ansible_failed_result.msg | default('TFTP error'))] }}"
+      tags:
+        - backup
+
+    - name: (backup) Fallback to local backup
+      ansible.builtin.include_tasks: backup_config.yml
+      vars:
+        backup_method: "local"
+      when: backup_method == "tftp"
+      tags:
+        - backup
+
+- name: (backup) Transfer backup to repository server
+  block:
+    - name: (backup) Copy backup file to repository server
+      ansible.builtin.copy:
+        src: "{{ temp_backup_file }}"
+        dest: "{{ repository_path }}/config_backups/{{ backup_filename }}"
+        mode: '0644'
+        backup: true
+      delegate_to: "{{ repository_server }}"
+      become: true
+      register: repository_transfer
+      when: 
+        - repository_server | length > 0
+        - backup_method == "local"
+      tags:
+        - backup
+
+    - name: (backup) Verify repository transfer
+      ansible.builtin.stat:
+        path: "{{ repository_path }}/config_backups/{{ backup_filename }}"
+      register: repository_backup_stat
+      delegate_to: "{{ repository_server }}"
+      when: 
+        - repository_server | length > 0
+        - backup_method == "local"
+      tags:
+        - backup
+
+    - name: (backup) Log successful repository transfer
+      ansible.builtin.debug:
+        msg: "✓ Sauvegarde transférée vers {{ repository_server }}:{{ repository_path }}/config_backups/{{ backup_filename }}"
+      when: 
+        - repository_server | length > 0
+        - repository_backup_stat.stat.exists | default(false)
+      tags:
+        - backup
+
+  rescue:
+    - name: (backup) Handle repository transfer failure
+      ansible.builtin.debug:
+        msg: "ATTENTION: Échec du transfert vers le serveur de dépôt, sauvegarde conservée localement"
+      tags:
+        - backup
+
+- name: (backup) Create backup metadata
+  block:
+    - name: (backup) Generate backup metadata
+      ansible.builtin.set_fact:
+        backup_metadata:
+          timestamp: "{{ backup_start_time }}"
+          switch_hostname: "{{ current_hostname }}"
+          switch_ip: "{{ inventory_hostname }}"
+          firmware_version_before: "{{ current_version }}"
+          target_firmware_version: "{{ target_firmware_version }}"
+          backup_method: "{{ backup_method }}"
+          backup_filename: "{{ backup_filename }}"
+          backup_size_bytes: "{{ backup_file_stat.stat.size | default(0) }}"
+          repository_stored: "{{ repository_backup_stat.stat.exists | default(false) }}"
+      tags:
+        - backup
+
+    - name: (backup) Save metadata to file
+      ansible.builtin.copy:
+        content: "{{ backup_metadata | to_nice_json }}"
+        dest: "{{ temp_update_path }}/backup_metadata_{{ inventory_hostname }}.json"
+      delegate_to: localhost
+      tags:
+        - backup
+
+    - name: (backup) Transfer metadata to repository
+      ansible.builtin.copy:
+        src: "{{ temp_update_path }}/backup_metadata_{{ inventory_hostname }}.json"
+        dest: "{{ repository_path }}/config_backups/{{ backup_filename }}.metadata.json"
+        mode: '0644'
+      delegate_to: "{{ repository_server }}"
+      become: true
+      when: repository_server | length > 0
+      tags:
+        - backup
+
+  rescue:
+    - name: (backup) Handle metadata creation failure
+      ansible.builtin.debug:
+        msg: "ATTENTION: Impossible de créer les métadonnées de sauvegarde"
+      tags:
+        - backup
+
+- name: (backup) Cleanup old backups
+  block:
+    - name: (backup) Find old backup files
+      ansible.builtin.find:
+        paths: "{{ repository_path }}/config_backups"
+        patterns: "config_backup_{{ inventory_hostname }}_*.cfg"
+        age: "30d"
+        age_stamp: ctime
+      register: old_backups
+      delegate_to: "{{ repository_server }}"
+      when: repository_server | length > 0
+      tags:
+        - backup
+
+    - name: (backup) Remove old backup files
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_backups.files | default([]) }}"
+      delegate_to: "{{ repository_server }}"
+      become: true
+      when: 
+        - repository_server | length > 0
+        - old_backups.files is defined
+        - old_backups.files | length > keep_backup_count | int
+      tags:
+        - backup
+
+    - name: (backup) Log cleanup results
+      ansible.builtin.debug:
+        msg: "✓ Nettoyage: {{ old_backups.files | default([]) | length }} anciennes sauvegardes supprimées"
+      when: 
+        - repository_server | length > 0
+        - old_backups.files is defined
+      tags:
+        - backup
+
+  rescue:
+    - name: (backup) Handle cleanup failure
+      ansible.builtin.debug:
+        msg: "ATTENTION: Échec du nettoyage des anciennes sauvegardes"
+      tags:
+        - backup
+
+- name: (backup) Record backup completion
+  ansible.builtin.set_fact:
+    backup_end_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+    backup_duration: "{{ ((backup_end_time | to_datetime) - (backup_start_time | to_datetime)).total_seconds() | int }}"
+    backup_completed: true
+    backup_info: "{{ backup_metadata | default({}) }}"
+  tags:
+    - backup
+
+- name: (backup) Display backup summary
+  ansible.builtin.debug:
+    msg:
+      - "=== RÉSUMÉ DE LA SAUVEGARDE ==="
+      - "Statut: ✓ TERMINÉE"
+      - "Fichier: {{ backup_filename }}"
+      - "Taille: {{ backup_file_stat.stat.size | default(0) }} bytes"
+      - "Durée: {{ backup_duration }}s"
+      - "Stockage local: ✓"
+      - "Stockage distant: {{ repository_backup_stat.stat.exists | default(false) | ternary('✓', '✗') }}"
+      - "Métadonnées: {{ backup_metadata is defined | ternary('✓', '✗') }}"
+  tags:
+    - backup

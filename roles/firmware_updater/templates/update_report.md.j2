@@ -1,0 +1,188 @@
+# Rapport de Mise à Jour Firmware
+
+## Informations Générales
+
+| Paramètre | Valeur |
+|-----------|--------|
+| **Switch** | {{ current_hostname | default(inventory_hostname) }} |
+| **Adresse IP** | {{ inventory_hostname }} |
+| **Plateforme** | {{ current_platform | default('Unknown') }} |
+| **Date de début** | {{ update_start_time }} |
+| **Date de fin** | {{ update_end_time | default('N/A') }} |
+| **Durée totale** | {{ update_duration | default('N/A') }}s ({{ (update_duration | default(0) | int / 60) | round(1) }}min) |
+| **Statut final** | {{ update_status | upper }} |
+
+## État Avant Mise à Jour
+
+| Paramètre | Valeur |
+|-----------|--------|
+| **Version en cours** | {{ firmware_state_before_update.current_version | default('N/A') }} |
+| **Image Primary** | {{ firmware_state_before_update.primary_image | default('N/A') }} |
+| **Image Secondary** | {{ firmware_state_before_update.secondary_image | default('N/A') }} |
+| **Partition de boot** | {{ firmware_state_before_update.default_image | default('N/A') }} |
+| **Uptime** | {{ firmware_state_before_update.uptime | default('N/A') }} |
+| **Espace libre** | {{ firmware_state_before_update.free_space | default('N/A') }}MB |
+
+## Configuration de la Mise à Jour
+
+| Paramètre | Valeur |
+|-----------|--------|
+| **Version cible** | {{ target_firmware_version }} |
+| **Fichier firmware** | {{ firmware_file_path if upload_method == 'local' else remote_firmware_url }} |
+| **Méthode d'upload** | {{ upload_method | upper }} |
+| **Stratégie de partition** | {{ partition_strategy | upper }} |
+| **Partition choisie** | {{ chosen_partition | default('N/A') }} |
+| **Sauvegarde config** | {{ backup_config | ternary('✓ Activée', '✗ Désactivée') }} |
+| **Vérification post-update** | {{ verify_post_update | ternary('✓ Activée', '✗ Désactivée') }} |
+| **Rollback automatique** | {{ rollback_on_failure | ternary('✓ Activé', '✗ Désactivé') }} |
+
+## Processus de Mise à Jour
+
+### 📋 Prérequis
+{% if update_errors | length == 0 or 'prerequisites' not in (update_errors | join(' ')) %}
+✅ **Réussi** - Tous les prérequis validés
+{% else %}
+❌ **Échec** - Prérequis non satisfaits
+{% endif %}
+
+### 💾 Sauvegarde
+{% if backup_completed | default(false) %}
+✅ **Réussie**
+- Fichier: {{ backup_filename | default('N/A') }}
+- Taille: {{ backup_info.backup_size_bytes | default(0) }} bytes
+- Durée: {{ backup_duration | default('N/A') }}s
+- Stockage distant: {{ backup_info.repository_stored | default(false) | ternary('✓', '✗') }}
+{% else %}
+{% if backup_config %}
+❌ **Échec** - Sauvegarde activée mais échouée
+{% else %}
+⏭️ **Ignorée** - Sauvegarde désactivée
+{% endif %}
+{% endif %}
+
+### 📤 Upload Firmware
+{% if firmware_upload_result is defined and firmware_upload_result is succeeded %}
+✅ **Réussi**
+- Partition: {{ chosen_partition }}
+- Durée: {{ upload_duration | default('N/A') }}s ({{ (upload_duration | default(0) | int / 60) | round(1) }}min)
+- Vérification: {{ upload_verification.verified | default(false) | ternary('✓', '✗') }}
+{% elif 'upload' in update_status %}
+❌ **Échec** - Problème durant l'upload
+{% else %}
+⏭️ **Ignoré** - Upload non nécessaire
+{% endif %}
+
+### 🔄 Redémarrage
+{% if reboot_verification is defined %}
+{% if reboot_verification.success %}
+✅ **Réussi**
+- Partition de boot: {{ reboot_verification.boot_partition }}
+- Version en cours: {{ reboot_verification.running_version }}
+- Durée: {{ reboot_verification.duration | default('N/A') }}s ({{ (reboot_verification.duration | default(0) | int / 60) | round(1) }}min)
+{% else %}
+❌ **Échec**
+- Erreur: {{ reboot_verification.error | default('Redémarrage échoué') }}
+{% endif %}
+{% elif reboot_needed | default(true) %}
+❌ **Échec** - Redémarrage requis mais échoué
+{% else %}
+⏭️ **Ignoré** - Redémarrage non nécessaire
+{% endif %}
+
+### ✅ Vérification
+{% if verification_results is defined %}
+{% if verification_passed | default(false) %}
+✅ **Réussie** ({{ verification_score | default(0) }}%)
+{% else %}
+❌ **Échec** ({{ verification_score | default(0) }}%)
+{% endif %}
+
+#### Détails des vérifications
+{% for check, result in verification_results.items() %}
+{% if check != 'overall' and check != 'state_comparison' %}
+- {{ check.replace('_', ' ').title() }}: {{ result.status | default(false) | ternary('✓', '✗') }}
+{% if not result.status | default(true) and result.error is defined %}
+  - Erreur: {{ result.error }}
+{% endif %}
+{% endif %}
+{% endfor %}
+{% else %}
+⏭️ **Ignorée** - Vérification désactivée
+{% endif %}
+
+## État Après Mise à Jour
+
+{% if state_comparison is defined %}
+| Paramètre | Avant | Après | Changé |
+|-----------|-------|-------|--------|
+| **Version** | {{ state_comparison.before.version }} | {{ state_comparison.after.version }} | {{ state_comparison.changes.version_changed | ternary('✓', '✗') }} |
+| **Image Primary** | {{ state_comparison.before.primary_image }} | {{ state_comparison.after.primary_image }} | {{ state_comparison.changes.primary_changed | ternary('✓', '✗') }} |
+| **Image Secondary** | {{ state_comparison.before.secondary_image }} | {{ state_comparison.after.secondary_image }} | {{ state_comparison.changes.secondary_changed | ternary('✓', '✗') }} |
+| **Partition de boot** | {{ state_comparison.before.default_image }} | {{ state_comparison.after.default_image }} | {{ state_comparison.changes.boot_partition_changed | ternary('✓', '✗') }} |
+{% else %}
+*Informations de comparaison non disponibles*
+{% endif %}
+
+## Métriques de Performance
+
+| Métrique | Valeur |
+|----------|--------|
+| **Temps d'upload** | {{ upload_duration | default('N/A') }}s |
+| **Temps de redémarrage** | {{ reboot_duration | default('N/A') }}s |
+| **Temps de vérification** | {{ verification_duration | default('N/A') }}s |
+| **Temps total** | {{ update_duration | default('N/A') }}s |
+| **Efficacité** | {{ (verification_score | default(0)) }}% |
+
+## Erreurs et Avertissements
+
+{% if update_errors | length > 0 %}
+{% for error in update_errors %}
+❌ {{ error }}
+{% endfor %}
+{% else %}
+✅ Aucune erreur signalée
+{% endif %}
+
+{% if rollback_performed | default(false) %}
+## 🔄 Rollback Effectué
+
+Un rollback automatique a été effectué en raison d'un échec de vérification.
+Le switch est revenu à la configuration précédente.
+
+**Action recommandée:** Analyser les erreurs ci-dessus et corriger avant de retenter la mise à jour.
+{% endif %}
+
+## Recommandations
+
+{% if update_status == 'completed' %}
+✅ **Mise à jour réussie**
+- La mise à jour s'est déroulée sans problème
+- Le switch fonctionne avec la nouvelle version
+- Aucune action supplémentaire requise
+
+{% elif update_status == 'failed' %}
+❌ **Mise à jour échouée**
+- Analyser les erreurs listées ci-dessus
+- Vérifier les prérequis (espace disque, connectivité)
+- Consulter les logs détaillés d'Ansible
+- Contacter le support si nécessaire
+
+{% elif update_status == 'verification_failed' %}
+⚠️ **Vérification échouée**
+- La mise à jour a été appliquée mais la vérification a échoué
+- Vérifier manuellement l'état du switch
+- Possible rollback effectué automatiquement
+
+{% elif update_status == 'critical_failure' %}
+🚨 **Échec critique**
+- Le switch peut être inaccessible
+- Intervention manuelle requise
+- Accès console série recommandé
+- Contacter le support technique
+{% endif %}
+
+---
+
+**Rapport généré le {{ '%Y-%m-%d %H:%M:%S' | strftime }} par Ansible Firmware Updater**
+
+*Pour plus de détails, consulter les logs Ansible complets*

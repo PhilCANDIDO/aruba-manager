@@ -1,0 +1,50 @@
+---
+# Paramètres par défaut pour le rôle firmware_updater
+
+# Paramètres du firmware
+firmware_file_path: ""                    # Chemin vers le fichier firmware (obligatoire)
+target_firmware_version: ""              # Version cible (obligatoire)
+remote_firmware_url: ""                  # URL HTTP pour download distant (optionnel)
+
+# Stratégie de mise à jour
+partition_strategy: "auto"               # auto, primary, secondary
+upload_method: "local"                   # local, remote
+force_update: false                      # Forcer la mise à jour même si déjà installée
+
+# Paramètres de timeout (en secondes)
+max_upload_time: 1800                   # 30 minutes pour l'upload
+max_reboot_time: 600                    # 10 minutes pour le reboot
+connection_timeout: 120                 # 2 minutes pour les vérifications connexion
+post_reboot_wait: 180                   # 3 minutes d'attente après reboot
+
+# Paramètres de sauvegarde
+backup_config: true                     # Sauvegarder la configuration avant MAJ
+backup_method: "local"                  # local, tftp, repository
+repository_server: ""                   # Serveur de dépôt pour sauvegardes
+repository_path: "/backups/firmware"    # Chemin sur le serveur de dépôt
+repository_port: 22                     # Port du serveur de dépôt
+
+# Paramètres de vérification
+verify_upload: true                     # Vérifier l'upload avant reboot
+verify_post_update: true               # Vérifier après la mise à jour
+rollback_on_failure: true              # Rollback automatique en cas d'échec
+
+# Paramètres de nettoyage
+cleanup_old_firmware: false            # Nettoyer les anciens firmwares
+keep_backup_count: 2                   # Nombre de sauvegardes à conserver
+
+# Paramètres de retry
+max_retries: 3                         # Nombre max de tentatives
+retry_delay: 30                        # Délai entre les tentatives (secondes)
+
+# VRF pour les opérations réseau
+management_vrf: "mgmt"                 # VRF pour les opérations de management
+
+# Paramètres de rapport
+generate_report: true                  # Générer un rapport de mise à jour
+report_format: "markdown"             # Format du rapport (markdown, json)
+send_notification: false              # Envoyer des notifications
+
+# Paramètres de sécurité
+validate_checksum: true               # Valider le checksum du firmware
+required_free_space_mb: 1000         # Espace libre minimum requis (MB)

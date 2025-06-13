@@ -1,0 +1,193 @@
+---
+# Tâches principales pour le rôle firmware_updater
+
+- name: (main) Initialize firmware update process
+  block:
+    - name: (main) Validate required parameters
+      ansible.builtin.assert:
+        that:
+          - firmware_file_path is defined
+          - firmware_file_path | length > 0
+          - target_firmware_version is defined
+          - target_firmware_version | length > 0
+        fail_msg: "Les paramètres firmware_file_path et target_firmware_version sont obligatoires"
+        success_msg: "Paramètres requis validés"
+      run_once: true
+      delegate_to: localhost
+      tags:
+        - always
+
+    - name: (main) Initialize update tracking variables
+      ansible.builtin.set_fact:
+        update_start_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+        update_status: "started"
+        update_errors: []
+        rollback_performed: false
+      tags:
+        - always
+
+    - name: (main) Create temporary directory for update files
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: "firmware_update_"
+      register: temp_update_dir
+      delegate_to: localhost
+      run_once: true
+      tags:
+        - always
+
+    - name: (main) Set temporary paths
+      ansible.builtin.set_fact:
+        temp_update_path: "{{ temp_update_dir.path }}"
+        temp_backup_file: "{{ temp_update_dir.path }}/config_backup_{{ inventory_hostname }}_{{ '%Y%m%d_%H%M%S' | strftime }}.cfg"
+        temp_report_file: "{{ temp_update_dir.path }}/update_report_{{ inventory_hostname }}_{{ '%Y%m%d_%H%M%S' | strftime }}.md"
+      delegate_to: localhost
+      tags:
+        - always
+
+  rescue:
+    - name: (main) Handle initialization failure
+      ansible.builtin.set_fact:
+        update_status: "initialization_failed"
+        update_errors: "{{ update_errors + [ansible_failed_result.msg | default('Initialization failed')] }}"
+      tags:
+        - always
+
+    - name: (main) Fail on initialization error
+      ansible.builtin.fail:
+        msg: "Échec de l'initialisation de la mise à jour firmware: {{ update_errors | join(', ') }}"
+      tags:
+        - always
+
+# Étape 1: Vérification des prérequis
+- name: (main) Check prerequisites
+  import_tasks: check_prerequisites.yml
+  tags:
+    - check
+    - always
+
+# Étape 2: Collecte de l'état actuel
+- name: (main) Collect current firmware state
+  import_tasks: collect_current_state.yml
+  tags:
+    - check
+    - always
+
+# Étape 3: Détermination de la stratégie
+- name: (main) Determine update strategy
+  import_tasks: determine_strategy.yml
+  tags:
+    - check
+    - always
+
+# Étape 4: Sauvegarde de la configuration (si activée)
+- name: (main) Backup current configuration
+  import_tasks: backup_config.yml
+  when: backup_config | bool
+  tags:
+    - backup
+    - always
+
+# Étape 5: Upload du firmware
+- name: (main) Upload firmware
+  import_tasks: upload_firmware.yml
+  tags:
+    - upload
+    - always
+
+# Étape 6: Redémarrage du switch
+- name: (main) Reboot switch with new firmware
+  import_tasks: reboot_switch.yml
+  tags:
+    - reboot
+    - always
+
+# Étape 7: Vérification post-update
+- name: (main) Verify firmware update
+  import_tasks: verify_update.yml
+  when: verify_post_update | bool
+  tags:
+    - verify
+    - always
+
+# Étape 8: Nettoyage (optionnel)
+- name: (main) Cleanup old firmware files
+  import_tasks: cleanup.yml
+  when: cleanup_old_firmware | bool
+  tags:
+    - cleanup
+
+# Finalisation et rapport
+- name: (main) Finalize update process
+  block:
+    - name: (main) Set completion time
+      ansible.builtin.set_fact:
+        update_end_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+        update_status: "{{ 'completed' if update_status != 'failed' else 'failed' }}"
+      tags:
+        - always
+
+    - name: (main) Generate update report
+      ansible.builtin.template:
+        src: update_report.md.j2
+        dest: "{{ temp_report_file }}"
+      delegate_to: localhost
+      when: generate_report | bool
+      tags:
+        - always
+
+    - name: (main) Transfer report to repository
+      ansible.builtin.copy:
+        src: "{{ temp_report_file }}"
+        dest: "{{ repository_path }}/firmware_updates/{{ inventory_hostname }}_{{ '%Y%m%d_%H%M%S' | strftime }}_report.md"
+        mode: '0644'
+      delegate_to: "{{ repository_server }}"
+      when: 
+        - generate_report | bool
+        - repository_server | length > 0
+      become: true
+      tags:
+        - always
+
+    - name: (main) Display update summary
+      ansible.builtin.debug:
+        msg:
+          - "=== RÉSUMÉ DE LA MISE À JOUR FIRMWARE ==="
+          - "Switch: {{ inventory_hostname }}"
+          - "Statut: {{ update_status | upper }}"
+          - "Version cible: {{ target_firmware_version }}"
+          - "Partition utilisée: {{ chosen_partition | default('N/A') }}"
+          - "Durée totale: {{ update_duration | default('N/A') }}"
+          - "Rollback effectué: {{ rollback_performed | ternary('OUI', 'NON') }}"
+          - "Erreurs: {{ update_errors | length }}"
+      tags:
+        - always
+
+  rescue:
+    - name: (main) Handle update failure
+      ansible.builtin.set_fact:
+        update_status: "failed"
+        update_end_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+      tags:
+        - always
+
+    - name: (main) Log critical failure
+      ansible.builtin.debug:
+        msg:
+          - "ÉCHEC CRITIQUE de la mise à jour firmware"
+          - "Switch: {{ inventory_hostname }}"
+          - "Erreur: {{ ansible_failed_result.msg | default('Erreur inconnue') }}"
+      tags:
+        - always
+
+  always:
+    - name: (main) Cleanup temporary files
+      ansible.builtin.file:
+        path: "{{ temp_update_path }}"
+        state: absent
+      delegate_to: localhost
+      run_once: true
+      when: temp_update_path is defined
+      tags:
+        - always
+        - cleanup

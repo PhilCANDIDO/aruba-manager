@@ -1,0 +1,50 @@
+---
+# update_firmware.yml
+# Playbook pour mettre à jour le firmware des switches Aruba AOS-CX
+
+- name: Mise à jour firmware des switches Aruba AOS-CX
+  hosts: switches_aruba
+  gather_facts: false
+  vars:
+    ansible_connection: arubanetworks.aoscx.aoscx
+    ansible_network_os: arubanetworks.aoscx.aoscx
+    ansible_become: false
+    
+    # Configuration du firmware
+    firmware_file_path: "/opt/firmware/ArubaOS-CX_6200_10_10_1040.swi"
+    target_firmware_version: "LL.10.10.1040"
+    
+    # Configuration du serveur de dépôt
+    repository_server: "backup.example.com"
+    repository_path: "/backups/network/aruba"
+    repository_port: 22
+    
+    # Stratégie de mise à jour
+    partition_strategy: "auto"              # auto, primary, secondary
+    upload_method: "local"                  # local, remote
+    force_update: false                     # Forcer même si déjà installé
+    
+    # Options de sécurité
+    backup_config: true                     # Sauvegarder avant MAJ
+    verify_post_update: true               # Vérifier après MAJ
+    rollback_on_failure: true              # Rollback auto si échec
+    
+    # Timeouts personnalisés (optionnel)
+    max_upload_time: 1800                  # 30 minutes
+    max_reboot_time: 600                   # 10 minutes
+    post_reboot_wait: 180                  # 3 minutes
+    
+    # Options de rapport
+    generate_report: true
+    send_notification: false
+    # notification_email: "admin@example.com"
+    
+  roles:
+    - role: firmware_updater
+      
+  post_tasks:
+    - name: Trigger completion handlers
+      ansible.builtin.command: /bin/true
+      notify: 
+        - firmware update completed
+      changed_when: true

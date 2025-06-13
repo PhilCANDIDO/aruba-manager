@@ -1,0 +1,123 @@
+---
+# Tâches de redémarrage du switch avec le nouveau firmware
+
+- name: (reboot) Skip reboot if not needed
+  block:
+    - name: (reboot) Check if reboot can be skipped
+      ansible.builtin.debug:
+        msg: "Redémarrage non nécessaire - le switch utilise déjà la version cible"
+      when: not reboot_needed
+      tags:
+        - reboot
+
+    - name: (reboot) End reboot tasks if not needed
+      ansible.builtin.meta: end_play
+      when: not reboot_needed
+      tags:
+        - reboot
+
+- name: (reboot) Prepare for switch reboot
+  block:
+    - name: (reboot) Record reboot start time
+      ansible.builtin.set_fact:
+        reboot_start_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+      tags:
+        - reboot
+
+    - name: (reboot) Display reboot information
+      ansible.builtin.debug:
+        msg:
+          - "=== PRÉPARATION DU REDÉMARRAGE ==="
+          - "Switch: {{ current_hostname }}"
+          - "Partition actuelle: {{ current_boot_partition }}"
+          - "Partition cible: {{ chosen_partition }}"
+          - "Version cible: {{ target_firmware_version }}"
+          - "Timeout configuré: {{ estimated_reboot_time }}s"
+          - "Changement de partition: {{ will_change_boot_partition | ternary('OUI', 'NON') }}"
+      tags:
+        - reboot
+
+    - name: (reboot) Save current connectivity parameters
+      ansible.builtin.set_fact:
+        original_host: "{{ ansible_host | default(inventory_hostname) }}"
+        original_port: "{{ ansible_port | default(443) }}"
+      tags:
+        - reboot
+
+- name: (reboot) Execute switch reboot
+  block:
+    - name: (reboot) Boot switch to target partition
+      arubanetworks.aoscx.aoscx_boot_firmware:
+        partition_name: "{{ chosen_partition }}"
+      register: boot_result
+      tags:
+        - reboot
+
+    - name: (reboot) Log reboot initiation
+      ansible.builtin.debug:
+        msg: "✓ Commande de redémarrage envoyée - Switch va redémarrer sur partition {{ chosen_partition }}"
+      tags:
+        - reboot
+
+  rescue:
+    - name: (reboot) Handle reboot command failure
+      ansible.builtin.set_fact:
+        update_errors: "{{ update_errors + ['Reboot command failed: ' + (ansible_failed_result.msg | default('Unknown reboot error'))] }}"
+        update_status: "reboot_failed"
+      tags:
+        - reboot
+
+    - name: (reboot) Fail on reboot command error
+      ansible.builtin.fail:
+        msg: "Échec de l'envoi de la commande de redémarrage"
+      tags:
+        - reboot
+
+- name: (reboot) Wait for switch to go down
+  block:
+    - name: (reboot) Wait for switch to become unreachable
+      ansible.builtin.wait_for:
+        host: "{{ original_host }}"
+        port: "{{ original_port }}"
+        state: stopped
+        timeout: 120
+      delegate_to: localhost
+      tags:
+        - reboot
+
+    - name: (reboot) Log switch unreachable
+      ansible.builtin.debug:
+        msg: "✓ Switch est devenu inaccessible - redémarrage en cours"
+      tags:
+        - reboot
+
+  rescue:
+    - name: (reboot) Handle switch down detection failure
+      ansible.builtin.debug:
+        msg: "ATTENTION: Impossible de détecter l'arrêt du switch, continuation de l'attente"
+      tags:
+        - reboot
+
+- name: (reboot) Wait for switch to come back online
+  block:
+    - name: (reboot) Wait for network connectivity
+      ansible.builtin.wait_for:
+        host: "{{ original_host }}"
+        port: "{{ original_port }}"
+        state: started
+        timeout: "{{ estimated_reboot_time | int }}"
+        delay: 30
+      delegate_to: localhost
+      tags:
+        - reboot
+
+    - name: (reboot) Log network connectivity restored
+      ansible.builtin.debug:
+        msg: "✓ Connectivité réseau restaurée"
+      tags:
+        - reboot
+
+    - name: (reboot) Wait additional time for services to start
+      ansible.builtin.pause:
+        seconds: "{{ post_reboot_wait }}"
+      tags:

@@ -1,0 +1,239 @@
+---
+# Tâches de collecte de l'état actuel du firmware
+
+- name: (collect_state) Gather comprehensive firmware facts
+  block:
+    - name: (collect_state) Collect firmware and system information
+      arubanetworks.aoscx.aoscx_facts:
+        gather_subset: "{{ firmware_facts_subset }}"
+        gather_network_resources: []
+      register: current_firmware_facts
+      retries: "{{ max_retries }}"
+      delay: "{{ retry_delay }}"
+      until: current_firmware_facts is not failed
+      tags:
+        - check
+
+    - name: (collect_state) Debug collected facts
+      ansible.builtin.debug:
+        var: current_firmware_facts.ansible_facts
+      tags:
+        - check
+        - debug
+        - never
+
+    - name: (collect_state) Extract current firmware information
+      ansible.builtin.set_fact:
+        current_hostname: >-
+          {{
+            current_firmware_facts.ansible_facts.get('ansible_net_hostname', inventory_hostname)
+          }}
+        current_version: >-
+          {{
+            current_firmware_facts.ansible_facts.get('ansible_net_software_version', 'Unknown')
+          }}
+        current_platform: >-
+          {{
+            current_firmware_facts.ansible_facts.get('ansible_net_platform_name', 'Unknown')
+          }}
+        software_images_info: >-
+          {{
+            current_firmware_facts.ansible_facts.get('ansible_net_software_images', {})
+          }}
+      tags:
+        - check
+
+    - name: (collect_state) Extract partition information
+      ansible.builtin.set_fact:
+        primary_image_version: >-
+          {{
+            software_images_info.get('primary_image_version', 'Not installed')
+          }}
+        secondary_image_version: >-
+          {{
+            software_images_info.get('secondary_image_version', 'Not installed')
+          }}
+        default_image: >-
+          {{
+            software_images_info.get('default_image', 'primary')
+          }}
+        primary_image_date: >-
+          {{
+            software_images_info.get('primary_image_date', 'Unknown')
+          }}
+        secondary_image_date: >-
+          {{
+            software_images_info.get('secondary_image_date', 'Unknown')
+          }}
+      tags:
+        - check
+
+  rescue:
+    - name: (collect_state) Handle facts collection failure
+      ansible.builtin.set_fact:
+        update_errors: "{{ update_errors + ['Failed to collect firmware facts: ' + (ansible_failed_result.msg | default('Unknown error'))] }}"
+      tags:
+        - check
+
+    - name: (collect_state) Fallback: collect basic information via CLI
+      block:
+        - name: (collect_state) Get firmware info via CLI commands
+          arubanetworks.aoscx.aoscx_command:
+            commands:
+              - "show version"
+              - "show image"
+              - "show hostname"
+          register: cli_firmware_info
+          tags:
+            - check
+
+        - name: (collect_state) Parse CLI output for firmware information
+          ansible.builtin.set_fact:
+            current_version: >-
+              {%- set version_output = cli_firmware_info.stdout[0] -%}
+              {%- for line in version_output.split('\n') -%}
+                {%- if 'Version' in line and ':' in line -%}
+                  {{ line.split(':')[1] | trim }}
+                {%- endif -%}
+              {%- endfor -%}
+            current_hostname: >-
+              {%- set hostname_output = cli_firmware_info.stdout[2] -%}
+              {{ hostname_output.strip() }}
+          tags:
+            - check
+
+        - name: (collect_state) Parse image information from CLI
+          ansible.builtin.set_fact:
+            primary_image_version: >-
+              {%- set image_output = cli_firmware_info.stdout[1] -%}
+              {%- for line in image_output.split('\n') -%}
+                {%- if 'Primary' in line and 'Version' in line -%}
+                  {%- set parts = line.split() -%}
+                  {%- for i, part in enumerate(parts) -%}
+                    {%- if 'Version' in part and i+2 < parts|length -%}
+                      {{ parts[i+2] }}
+                    {%- endif -%}
+                  {%- endfor -%}
+                {%- endif -%}
+              {%- endfor -%}
+            secondary_image_version: >-
+              {%- set image_output = cli_firmware_info.stdout[1] -%}
+              {%- for line in image_output.split('\n') -%}
+                {%- if 'Secondary' in line and 'Version' in line -%}
+                  {%- set parts = line.split() -%}
+                  {%- for i, part in enumerate(parts) -%}
+                    {%- if 'Version' in part and i+2 < parts|length -%}
+                      {{ parts[i+2] }}
+                    {%- endif -%}
+                  {%- endfor -%}
+                {%- endif -%}
+              {%- endfor -%}
+          tags:
+            - check
+
+      rescue:
+        - name: (collect_state) Critical failure in state collection
+          ansible.builtin.fail:
+            msg: "Impossible de collecter les informations firmware du switch {{ inventory_hostname }}"
+          tags:
+            - check
+
+- name: (collect_state) Validate firmware version format
+  ansible.builtin.set_fact:
+    target_version_valid: >-
+      {{ target_firmware_version | regex_search(regex_patterns.version_format) is not none }}
+  tags:
+    - check
+
+- name: (collect_state) Check if target version is already installed
+  ansible.builtin.set_fact:
+    already_on_primary: >-
+      {{ primary_image_version == target_firmware_version }}
+    already_on_secondary: >-
+      {{ secondary_image_version == target_firmware_version }}
+    currently_running_target: >-
+      {{ current_version == target_firmware_version }}
+  tags:
+    - check
+
+- name: (collect_state) Determine if update is needed
+  ansible.builtin.set_fact:
+    update_needed: >-
+      {{
+        not currently_running_target or force_update | bool
+      }}
+  tags:
+    - check
+
+- name: (collect_state) Get additional system information
+  block:
+    - name: (collect_state) Collect system resource utilization
+      arubanetworks.aoscx.aoscx_command:
+        commands:
+          - "show system resource-utilization"
+          - "show system"
+          - "show uptime"
+      register: system_info
+      tags:
+        - check
+
+    - name: (collect_state) Parse system uptime
+      ansible.builtin.set_fact:
+        system_uptime: >-
+          {%- set uptime_output = system_info.stdout[2] -%}
+          {%- for line in uptime_output.split('\n') -%}
+            {%- if 'up' in line.lower() -%}
+              {{ line.strip() }}
+            {%- endif -%}
+          {%- endfor -%}
+      tags:
+        - check
+
+  rescue:
+    - name: (collect_state) Handle system info collection failure
+      ansible.builtin.debug:
+        msg: "Impossible de collecter les informations système détaillées"
+      tags:
+        - check
+
+- name: (collect_state) Store current state for later comparison
+  ansible.builtin.set_fact:
+    firmware_state_before_update:
+      hostname: "{{ current_hostname }}"
+      current_version: "{{ current_version }}"
+      primary_image: "{{ primary_image_version }}"
+      secondary_image: "{{ secondary_image_version }}"
+      default_image: "{{ default_image }}"
+      platform: "{{ current_platform }}"
+      uptime: "{{ system_uptime | default('Unknown') }}"
+      collection_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+      free_space: "{{ current_free_space | default('Unknown') }}"
+  tags:
+    - check
+
+- name: (collect_state) Current firmware state summary
+  ansible.builtin.debug:
+    msg:
+      - "=== ÉTAT ACTUEL DU FIRMWARE ==="
+      - "Switch: {{ current_hostname }} ({{ inventory_hostname }})"
+      - "Plateforme: {{ current_platform }}"
+      - "Version actuelle: {{ current_version }}"
+      - "Image Primary: {{ primary_image_version }}"
+      - "Image Secondary: {{ secondary_image_version }}"
+      - "Image par défaut: {{ default_image }}"
+      - "Uptime: {{ system_uptime | default('Unknown') }}"
+      - "Espace libre: {{ current_free_space | default('Non vérifié') }}MB"
+      - "Version cible: {{ target_firmware_version }}"
+      - "Mise à jour nécessaire: {{ update_needed | ternary('OUI', 'NON') }}"
+      - "Déjà installé sur Primary: {{ already_on_primary | ternary('OUI', 'NON') }}"
+      - "Déjà installé sur Secondary: {{ already_on_secondary | ternary('OUI', 'NON') }}"
+  tags:
+    - check
+
+- name: (collect_state) Skip update if not needed and not forced
+  ansible.builtin.meta: end_play
+  when: 
+    - not update_needed
+    - not force_update | bool
+  tags:
+    - check

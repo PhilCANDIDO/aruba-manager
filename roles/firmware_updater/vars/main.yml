@@ -1,0 +1,108 @@
+---
+# Variables internes pour le rôle firmware_updater
+
+# Commandes pour la collecte d'informations
+info_commands:
+  current_version: "show version"
+  image_info: "show image"
+  system_info: "show system"
+  disk_usage: "show system resource-utilization"
+
+# Mapping des facts Ansible pour AOS-CX
+facts_mapping:
+  current_version: "ansible_net_software_version"
+  primary_image: "ansible_net_software_images.primary_image_version"
+  secondary_image: "ansible_net_software_images.secondary_image_version"
+  hostname: "ansible_net_hostname"
+  platform: "ansible_net_platform_name"
+
+# Configuration des facts à collecter
+firmware_facts_subset:
+  - software_version
+  - software_images
+  - platform_name
+  - host_name
+
+# Expressions régulières pour validation
+regex_patterns:
+  version_format: '^[A-Z]{2}\\.\\d{2}\\.\\d{2}\\.\\d{4}$'  # Format LL.XX.XX.XXXX
+  firmware_filename: '^ArubaOS-CX_.+\\.swi$'               # Format fichier .swi
+
+# Messages de statut
+status_messages:
+  checking_prerequisites: "Vérification des prérequis"
+  collecting_state: "Collecte de l'état actuel"
+  determining_strategy: "Détermination de la stratégie"
+  backing_up: "Sauvegarde de la configuration"
+  uploading_firmware: "Upload du firmware"
+  rebooting: "Redémarrage du switch"
+  verifying_update: "Vérification de la mise à jour"
+  cleaning_up: "Nettoyage"
+
+# Codes de retour pour les différentes situations
+return_codes:
+  success: 0
+  already_up_to_date: 1
+  prerequisites_failed: 2
+  upload_failed: 3
+  reboot_failed: 4
+  verification_failed: 5
+  rollback_performed: 6
+
+# Tailles minimales d'espace disque par modèle (en MB)
+minimum_space_requirements:
+  default: 1000
+  "6200": 800
+  "6300": 1000
+  "6400": 1200
+  "8320": 1500
+  "8325": 1500
+  "8400": 2000
+
+# Timeouts spécifiques par modèle (en secondes)
+model_specific_timeouts:
+  upload:
+    default: 1800
+    "6100": 2400
+    "6200": 1800
+    "6300": 2100
+    "6400": 2400
+    "8320": 3000
+    "8325": 3000
+    "8400": 3600
+  reboot:
+    default: 600
+    "6100": 480
+    "6200": 600
+    "6300": 720
+    "6400": 900
+    "8320": 1200
+    "8325": 1200
+    "8400": 1500
+
+# Structure des données de rapport
+report_structure:
+  metadata:
+    - switch_name
+    - switch_ip
+    - start_time
+    - end_time
+    - duration
+    - status
+  before_update:
+    - current_version
+    - primary_image_version
+    - secondary_image_version
+    - free_space
+  update_process:
+    - target_version
+    - chosen_partition
+    - upload_duration
+    - reboot_duration
+  after_update:
+    - new_version
+    - verification_status
+    - rollback_performed
+  errors:
+    - error_messages
+    - warnings

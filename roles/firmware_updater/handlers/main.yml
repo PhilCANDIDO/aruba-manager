@@ -1,0 +1,57 @@
+---
+# Handlers pour le rôle firmware_updater
+
+- name: Send firmware update notification
+  ansible.builtin.mail:
+    to: "{{ notification_email | default('admin@example.com') }}"
+    subject: "Firmware Update {{ update_status | upper }} - {{ inventory_hostname }}"
+    body: |
+      Mise à jour firmware terminée sur {{ inventory_hostname }}
+      
+      Statut: {{ update_status | upper }}
+      Version cible: {{ target_firmware_version }}
+      Version finale: {{ final_version | default('N/A') }}
+      Durée totale: {{ update_duration | default('N/A') }}
+      
+      {% if update_errors | length > 0 %}
+      Erreurs rencontrées:
+      {% for error in update_errors %}
+      - {{ error }}
+      {% endfor %}
+      {% endif %}
+      
+      Rapport complet disponible sur {{ repository_server }}:{{ repository_path }}
+  when: 
+    - send_notification | bool
+    - notification_email is defined
+  delegate_to: localhost
+  listen: "firmware update completed"
+
+- name: Log firmware update completion
+  ansible.builtin.lineinfile:
+    path: "/var/log/ansible_firmware_updates.log"
+    line: "{{ '%Y-%m-%d %H:%M:%S' | strftime }} - {{ inventory_hostname }} - {{ update_status | upper }} - {{ target_firmware_version }}"
+    create: true
+    mode: '0644'
+  delegate_to: localhost
+  listen: "firmware update completed"
+
+- name: Update inventory tracking
+  ansible.builtin.lineinfile:
+    path: "{{ inventory_tracking_file | default('/tmp/firmware_inventory.txt') }}"
+    regexp: "^{{ inventory_hostname }},"
+    line: "{{ inventory_hostname }},{{ final_version | default(current_version) }},{{ '%Y-%m-%d %H:%M:%S' | strftime }},{{ update_status }}"
+    create: true
+    mode: '0644'
+  delegate_to: localhost
+  listen: "firmware update completed"
+
+- name: Cleanup failed update artifacts
+  ansible.builtin.file:
+    path: "{{ temp_update_path }}"
+    state: absent
+  delegate_to: localhost
+  when: 
+    - temp_update_path is defined
+    - update_status in ['failed', 'critical_failure']
+  listen: "cleanup on failure"

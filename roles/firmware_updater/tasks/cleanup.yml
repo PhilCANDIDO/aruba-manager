@@ -1,0 +1,326 @@
+---
+# Tâches de nettoyage post-mise à jour
+
+- name: (cleanup) Initialize cleanup process
+  ansible.builtin.set_fact:
+    cleanup_start_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+    cleanup_actions: []
+  tags:
+    - cleanup
+
+- name: (cleanup) Display cleanup information
+  ansible.builtin.debug:
+    msg:
+      - "=== NETTOYAGE POST-MISE À JOUR ==="
+      - "Switch: {{ current_hostname }}"
+      - "Nettoyage firmware: {{ cleanup_old_firmware | ternary('Activé', 'Désactivé') }}"
+      - "Conservation des sauvegardes: {{ keep_backup_count }}"
+  tags:
+    - cleanup
+
+- name: (cleanup) Clean old firmware images
+  block:
+    - name: (cleanup) Get current firmware images information
+      arubanetworks.aoscx.aoscx_facts:
+        gather_subset:
+          - software_images
+      register: cleanup_firmware_facts
+      tags:
+        - cleanup
+
+    - name: (cleanup) Determine which partition to clean
+      ansible.builtin.set_fact:
+        partition_to_clean: >-
+          {{ 'primary' if chosen_partition == 'secondary' else 'secondary' }}
+        cleanup_candidate_version: >-
+          {{
+            cleanup_firmware_facts.ansible_facts.get('ansible_net_software_images', {}).get(
+              ('primary_image_version' if chosen_partition == 'secondary' else 'secondary_image_version'), 
+              'Unknown'
+            )
+          }}
+      tags:
+        - cleanup
+
+    - name: (cleanup) Check if cleanup is safe
+      ansible.builtin.set_fact:
+        cleanup_safe: >-
+          {{
+            cleanup_candidate_version != target_firmware_version and
+            cleanup_candidate_version != 'Unknown' and
+            cleanup_candidate_version != current_version
+          }}
+      tags:
+        - cleanup
+
+    - name: (cleanup) Log cleanup decision
+      ansible.builtin.debug:
+        msg:
+          - "Partition à nettoyer: {{ partition_to_clean }}"
+          - "Version à supprimer: {{ cleanup_candidate_version }}"
+          - "Nettoyage sûr: {{ cleanup_safe | ternary('OUI', 'NON') }}"
+      tags:
+        - cleanup
+
+    - name: (cleanup) Remove old firmware image
+      arubanetworks.aoscx.aoscx_command:
+        commands:
+          - "boot system {{ partition_to_clean }} delete"
+      register: firmware_cleanup_result
+      when: 
+        - cleanup_safe | bool
+        - cleanup_old_firmware | bool
+      tags:
+        - cleanup
+
+    - name: (cleanup) Verify firmware cleanup
+      arubanetworks.aoscx.aoscx_facts:
+        gather_subset:
+          - software_images
+      register: post_cleanup_facts
+      when: 
+        - cleanup_safe | bool
+        - cleanup_old_firmware | bool
+        - firmware_cleanup_result is succeeded
+      tags:
+        - cleanup
+
+    - name: (cleanup) Record firmware cleanup result
+      ansible.builtin.set_fact:
+        cleanup_actions: >-
+          {{
+            cleanup_actions + [{
+              'action': 'firmware_cleanup',
+              'partition': partition_to_clean,
+              'old_version': cleanup_candidate_version,
+              'success': firmware_cleanup_result is succeeded | default(false)
+            }]
+          }}
+      when: cleanup_old_firmware | bool
+      tags:
+        - cleanup
+
+  rescue:
+    - name: (cleanup) Handle firmware cleanup failure
+      ansible.builtin.debug:
+        msg: "ATTENTION: Échec du nettoyage des anciens firmwares"
+      tags:
+        - cleanup
+
+    - name: (cleanup) Record cleanup failure
+      ansible.builtin.set_fact:
+        cleanup_actions: >-
+          {{
+            cleanup_actions + [{
+              'action': 'firmware_cleanup',
+              'success': false,
+              'error': ansible_failed_result.msg | default('Cleanup failed')
+            }]
+          }}
+      tags:
+        - cleanup
+
+- name: (cleanup) Clean old configuration backups on repository
+  block:
+    - name: (cleanup) Find old backup files on repository
+      ansible.builtin.find:
+        paths: "{{ repository_path }}/config_backups"
+        patterns: "config_backup_{{ inventory_hostname }}_*.cfg"
+        age: "30d"
+        age_stamp: ctime
+      register: old_config_backups
+      delegate_to: "{{ repository_server }}"
+      when: repository_server | length > 0
+      tags:
+        - cleanup
+
+    - name: (cleanup) Sort backups by modification time
+      ansible.builtin.set_fact:
+        sorted_backups: >-
+          {{
+            old_config_backups.files | default([]) | 
+            sort(attribute='mtime') | reverse
+          }}
+      when: repository_server | length > 0
+      tags:
+        - cleanup
+
+    - name: (cleanup) Identify backups to remove
+      ansible.builtin.set_fact:
+        backups_to_remove: >-
+          {{
+            sorted_backups[keep_backup_count | int:] if sorted_backups | length > keep_backup_count | int else []
+          }}
+      when: repository_server | length > 0
+      tags:
+        - cleanup
+
+    - name: (cleanup) Remove old backup files
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ backups_to_remove }}"
+      delegate_to: "{{ repository_server }}"
+      become: true
+      register: backup_cleanup_results
+      when: 
+        - repository_server | length > 0
+        - backups_to_remove | length > 0
+      tags:
+        - cleanup
+
+    - name: (cleanup) Remove corresponding metadata files
+      ansible.builtin.file:
+        path: "{{ item.path }}.metadata.json"
+        state: absent
+      loop: "{{ backups_to_remove }}"
+      delegate_to: "{{ repository_server }}"
+      become: true
+      when: 
+        - repository_server | length > 0
+        - backups_to_remove | length > 0
+      tags:
+        - cleanup
+
+    - name: (cleanup) Record backup cleanup results
+      ansible.builtin.set_fact:
+        cleanup_actions: >-
+          {{
+            cleanup_actions + [{
+              'action': 'backup_cleanup',
+              'files_removed': backups_to_remove | length,
+              'files_kept': keep_backup_count | int,
+              'success': true
+            }]
+          }}
+      when: 
+        - repository_server | length > 0
+        - backups_to_remove is defined
+      tags:
+        - cleanup
+
+  rescue:
+    - name: (cleanup) Handle backup cleanup failure
+      ansible.builtin.debug:
+        msg: "ATTENTION: Échec du nettoyage des anciennes sauvegardes"
+      tags:
+        - cleanup
+
+    - name: (cleanup) Record backup cleanup failure
+      ansible.builtin.set_fact:
+        cleanup_actions: >-
+          {{
+            cleanup_actions + [{
+              'action': 'backup_cleanup',
+              'success': false,
+              'error': ansible_failed_result.msg | default('Backup cleanup failed')
+            }]
+          }}
+      tags:
+        - cleanup
+
+- name: (cleanup) Clean temporary files on controller
+  block:
+    - name: (cleanup) Remove local temporary directory
+      ansible.builtin.file:
+        path: "{{ temp_update_path }}"
+        state: absent
+      delegate_to: localhost
+      when: temp_update_path is defined
+      tags:
+        - cleanup
+
+    - name: (cleanup) Record temp cleanup
+      ansible.builtin.set_fact:
+        cleanup_actions: >-
+          {{
+            cleanup_actions + [{
+              'action': 'temp_cleanup',
+              'path': temp_update_path | default('N/A'),
+              'success': true
+            }]
+          }}
+      tags:
+        - cleanup
+
+  rescue:
+    - name: (cleanup) Handle temp cleanup failure
+      ansible.builtin.debug:
+        msg: "ATTENTION: Échec du nettoyage des fichiers temporaires"
+      tags:
+        - cleanup
+
+- name: (cleanup) Clean old firmware update reports
+  block:
+    - name: (cleanup) Find old report files
+      ansible.builtin.find:
+        paths: "{{ repository_path }}/firmware_updates"
+        patterns: "{{ inventory_hostname }}_*_report.md"
+        age: "90d"
+        age_stamp: ctime
+      register: old_reports
+      delegate_to: "{{ repository_server }}"
+      when: repository_server | length > 0
+      tags:
+        - cleanup
+
+    - name: (cleanup) Remove old report files
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_reports.files | default([]) }}"
+      delegate_to: "{{ repository_server }}"
+      become: true
+      when: 
+        - repository_server | length > 0
+        - old_reports.files is defined
+        - old_reports.files | length > 10  # Keep at least 10 reports
+      tags:
+        - cleanup
+
+    - name: (cleanup) Record report cleanup
+      ansible.builtin.set_fact:
+        cleanup_actions: >-
+          {{
+            cleanup_actions + [{
+              'action': 'report_cleanup',
+              'files_removed': old_reports.files | default([]) | length,
+              'success': true
+            }]
+          }}
+      when: repository_server | length > 0
+      tags:
+        - cleanup
+
+  rescue:
+    - name: (cleanup) Handle report cleanup failure
+      ansible.builtin.debug:
+        msg: "ATTENTION: Échec du nettoyage des anciens rapports"
+      tags:
+        - cleanup
+
+- name: (cleanup) Record cleanup completion
+  ansible.builtin.set_fact:
+    cleanup_end_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+    cleanup_duration: "{{ ((cleanup_end_time | to_datetime) - (cleanup_start_time | to_datetime)).total_seconds() | int }}"
+    cleanup_completed: true
+  tags:
+    - cleanup
+
+- name: (cleanup) Display cleanup summary
+  ansible.builtin.debug:
+    msg:
+      - "=== RÉSUMÉ DU NETTOYAGE ==="
+      - "Durée: {{ cleanup_duration }}s"
+      - "Actions effectuées: {{ cleanup_actions | length }}"
+      - "Actions réussies: {{ cleanup_actions | selectattr('success', 'equalto', true) | list | length }}"
+      - "Actions échouées: {{ cleanup_actions | selectattr('success', 'equalto', false) | list | length }}"
+      - "Détails des actions:"
+      {% for action in cleanup_actions %}
+      - "  - {{ action.action }}: {{ action.success | ternary('✓', '✗') }}"
+      {% if not action.success and action.error is defined %}
+      - "    Erreur: {{ action.error }}"
+      {% endif %}
+      {% endfor %}
+  tags:
+    - cleanup

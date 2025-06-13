@@ -1,0 +1,36 @@
+---
+# Métadonnées pour le rôle firmware_updater
+
+galaxy_info:
+  author: Aruba Manager Team
+  description: Mise à jour sécurisée des firmwares Aruba AOS-CX
+  company: Votre Organisation
+  
+  license: MIT
+  
+  min_ansible_version: "2.10"
+  
+  platforms:
+    - name: GenericLinux
+      versions:
+        - any
+  
+  galaxy_tags:
+    - networking
+    - aruba
+    - aoscx
+    - firmware
+    - update
+    - switches
+    - automation
+    - infrastructure
+    - maintenance
+
+# Dépendances du rôle
+dependencies: []
+
+# Collections requises
+collections:
+  - arubanetworks.aoscx
+  - ansible.netcommon
+  - community.general

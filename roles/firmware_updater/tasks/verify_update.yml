@@ -1,0 +1,364 @@
+---
+# Tâches de vérification post-mise à jour
+
+- name: (verify) Initialize verification process
+  ansible.builtin.set_fact:
+    verification_start_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+    verification_results: {}
+  tags:
+    - verify
+
+- name: (verify) Collect post-update system state
+  block:
+    - name: (verify) Gather comprehensive post-update facts
+      arubanetworks.aoscx.aoscx_facts:
+        gather_subset:
+          - software_version
+          - software_images
+          - host_name
+          - platform_name
+      register: post_update_facts
+      retries: 3
+      delay: 15
+      tags:
+        - verify
+
+    - name: (verify) Extract post-update information
+      ansible.builtin.set_fact:
+        final_hostname: >-
+          {{
+            post_update_facts.ansible_facts.get('ansible_net_hostname', 'Unknown')
+          }}
+        final_version: >-
+          {{
+            post_update_facts.ansible_facts.get('ansible_net_software_version', 'Unknown')
+          }}
+        final_platform: >-
+          {{
+            post_update_facts.ansible_facts.get('ansible_net_platform_name', 'Unknown')
+          }}
+        final_software_images: >-
+          {{
+            post_update_facts.ansible_facts.get('ansible_net_software_images', {})
+          }}
+      tags:
+        - verify
+
+    - name: (verify) Extract final partition information
+      ansible.builtin.set_fact:
+        final_primary_version: >-
+          {{
+            final_software_images.get('primary_image_version', 'Unknown')
+          }}
+        final_secondary_version: >-
+          {{
+            final_software_images.get('secondary_image_version', 'Unknown')
+          }}
+        final_default_image: >-
+          {{
+            final_software_images.get('default_image', 'Unknown')
+          }}
+      tags:
+        - verify
+
+  rescue:
+    - name: (verify) Handle facts collection failure
+      ansible.builtin.set_fact:
+        update_errors: "{{ update_errors + ['Post-update facts collection failed: ' + (ansible_failed_result.msg | default('Unknown error'))] }}"
+        verification_results: "{{ verification_results | combine({'facts_collection': false}) }}"
+      tags:
+        - verify
+
+- name: (verify) Verify firmware version update
+  block:
+    - name: (verify) Check if target version is running
+      ansible.builtin.set_fact:
+        version_verification: >-
+          {{ final_version == target_firmware_version }}
+      tags:
+        - verify
+
+    - name: (verify) Verify target version on correct partition
+      ansible.builtin.set_fact:
+        partition_verification: >-
+          {{
+            (chosen_partition == 'primary' and final_primary_version == target_firmware_version) or
+            (chosen_partition == 'secondary' and final_secondary_version == target_firmware_version)
+          }}
+      tags:
+        - verify
+
+    - name: (verify) Verify boot partition is correct
+      ansible.builtin.set_fact:
+        boot_partition_verification: >-
+          {{ final_default_image == chosen_partition }}
+      tags:
+        - verify
+
+    - name: (verify) Store version verification results
+      ansible.builtin.set_fact:
+        verification_results: >-
+          {{
+            verification_results | combine({
+              'version_correct': version_verification,
+              'partition_correct': partition_verification,
+              'boot_partition_correct': boot_partition_verification,
+              'target_version_running': version_verification
+            })
+          }}
+      tags:
+        - verify
+
+  rescue:
+    - name: (verify) Handle version verification failure
+      ansible.builtin.set_fact:
+        verification_results: >-
+          {{
+            verification_results | combine({
+              'version_correct': false,
+              'verification_error': ansible_failed_result.msg | default('Version verification failed')
+            })
+          }}
+      tags:
+        - verify
+
+- name: (verify) Test switch functionality
+  block:
+    - name: (verify) Test basic CLI functionality
+      arubanetworks.aoscx.aoscx_command:
+        commands:
+          - "show version"
+          - "show system"
+          - "show interface mgmt"
+      register: functionality_test
+      tags:
+        - verify
+
+    - name: (verify) Verify CLI responses are valid
+      ansible.builtin.assert:
+        that:
+          - functionality_test.stdout | length > 0
+          - "'Version' in functionality_test.stdout[0]"
+        fail_msg: "CLI functionality test failed"
+        success_msg: "✓ CLI functionality verified"
+      tags:
+        - verify
+
+    - name: (verify) Store functionality verification
+      ansible.builtin.set_fact:
+        verification_results: >-
+          {{
+            verification_results | combine({'cli_functional': true})
+          }}
+      tags:
+        - verify
+
+  rescue:
+    - name: (verify) Handle functionality test failure
+      ansible.builtin.set_fact:
+        verification_results: >-
+          {{
+            verification_results | combine({
+              'cli_functional': false,
+              'functionality_error': ansible_failed_result.msg | default('Functionality test failed')
+            })
+          }}
+      tags:
+        - verify
+
+- name: (verify) Check system services and stability
+  block:
+    - name: (verify) Get system uptime and status
+      arubanetworks.aoscx.aoscx_command:
+        commands:
+          - "show uptime"
+          - "show system resource-utilization"
+      register: system_status
+      tags:
+        - verify
+
+    - name: (verify) Parse system uptime
+      ansible.builtin.set_fact:
+        post_update_uptime: >-
+          {%- set uptime_output = system_status.stdout[0] -%}
+          {%- for line in uptime_output.split('\n') -%}
+            {%- if 'up' in line.lower() -%}
+              {{ line.strip() }}
+            {%- endif -%}
+          {%- endfor -%}
+      tags:
+        - verify
+
+    - name: (verify) Verify system is stable
+      ansible.builtin.assert:
+        that:
+          - "'up' in post_update_uptime.lower()"
+        fail_msg: "System does not appear stable after update"
+        success_msg: "✓ System stability verified"
+      tags:
+        - verify
+
+    - name: (verify) Store stability verification
+      ansible.builtin.set_fact:
+        verification_results: >-
+          {{
+            verification_results | combine({'system_stable': true})
+          }}
+      tags:
+        - verify
+
+  rescue:
+    - name: (verify) Handle stability check failure
+      ansible.builtin.set_fact:
+        verification_results: >-
+          {{
+            verification_results | combine({
+              'system_stable': false,
+              'stability_error': ansible_failed_result.msg | default('Stability check failed')
+            })
+          }}
+      tags:
+        - verify
+
+- name: (verify) Compare before and after states
+  block:
+    - name: (verify) Create state comparison
+      ansible.builtin.set_fact:
+        state_comparison:
+          before:
+            version: "{{ firmware_state_before_update.current_version }}"
+            primary_image: "{{ firmware_state_before_update.primary_image }}"
+            secondary_image: "{{ firmware_state_before_update.secondary_image }}"
+            default_image: "{{ firmware_state_before_update.default_image }}"
+            hostname: "{{ firmware_state_before_update.hostname }}"
+          after:
+            version: "{{ final_version }}"
+            primary_image: "{{ final_primary_version }}"
+            secondary_image: "{{ final_secondary_version }}"
+            default_image: "{{ final_default_image }}"
+            hostname: "{{ final_hostname }}"
+          changes:
+            version_changed: "{{ firmware_state_before_update.current_version != final_version }}"
+            primary_changed: "{{ firmware_state_before_update.primary_image != final_primary_version }}"
+            secondary_changed: "{{ firmware_state_before_update.secondary_image != final_secondary_version }}"
+            boot_partition_changed: "{{ firmware_state_before_update.default_image != final_default_image }}"
+      tags:
+        - verify
+
+    - name: (verify) Store comparison results
+      ansible.builtin.set_fact:
+        verification_results: >-
+          {{
+            verification_results | combine({'state_comparison': state_comparison})
+          }}
+      tags:
+        - verify
+
+  rescue:
+    - name: (verify) Handle comparison failure
+      ansible.builtin.debug:
+        msg: "Unable to create complete state comparison"
+      tags:
+        - verify
+
+- name: (verify) Overall verification assessment
+  block:
+    - name: (verify) Calculate verification score
+      ansible.builtin.set_fact:
+        verification_score: >-
+          {%- set total_checks = 5 -%}
+          {%- set passed_checks = 0 -%}
+          {%- if verification_results.get('version_correct', false) -%}
+            {%- set passed_checks = passed_checks + 1 -%}
+          {%- endif -%}
+          {%- if verification_results.get('partition_correct', false) -%}
+            {%- set passed_checks = passed_checks + 1 -%}
+          {%- endif -%}
+          {%- if verification_results.get('boot_partition_correct', false) -%}
+            {%- set passed_checks = passed_checks + 1 -%}
+          {%- endif -%}
+          {%- if verification_results.get('cli_functional', false) -%}
+            {%- set passed_checks = passed_checks + 1 -%}
+          {%- endif -%}
+          {%- if verification_results.get('system_stable', false) -%}
+            {%- set passed_checks = passed_checks + 1 -%}
+          {%- endif -%}
+          {{ (passed_checks / total_checks * 100) | round(0) | int }}
+      tags:
+        - verify
+
+    - name: (verify) Determine overall verification status
+      ansible.builtin.set_fact:
+        verification_passed: >-
+          {{ verification_score | int >= 80 }}
+        update_verification_summary:
+          overall_status: "{{ 'PASSED' if verification_score | int >= 80 else 'FAILED' }}"
+          score: "{{ verification_score }}%"
+          critical_checks:
+            version_correct: "{{ verification_results.get('version_correct', false) }}"
+            system_functional: "{{ verification_results.get('cli_functional', false) }}"
+          optional_checks:
+            partition_correct: "{{ verification_results.get('partition_correct', false) }}"
+            boot_partition_correct: "{{ verification_results.get('boot_partition_correct', false) }}"
+            system_stable: "{{ verification_results.get('system_stable', false) }}"
+      tags:
+        - verify
+
+- name: (verify) Handle verification failure
+  block:
+    - name: (verify) Log verification failure
+      ansible.builtin.debug:
+        msg:
+          - "✗ ÉCHEC DE LA VÉRIFICATION POST-MISE À JOUR"
+          - "Score: {{ verification_score }}% (seuil: 80%)"
+          - "Vérifications échouées:"
+          - "{{ verification_results | dict2items | selectattr('value', 'equalto', false) | map(attribute='key') | list | join(', ') }}"
+      when: not verification_passed
+      tags:
+        - verify
+
+    - name: (verify) Set update status to failed
+      ansible.builtin.set_fact:
+        update_status: "verification_failed"
+      when: not verification_passed
+      tags:
+        - verify
+
+    - name: (verify) Trigger rollback if enabled
+      ansible.builtin.include_tasks: rollback.yml
+      when: 
+        - not verification_passed
+        - rollback_on_failure | bool
+        - update_plan.rollback_available | default(false)
+      tags:
+        - verify
+
+  when: not verification_passed
+
+- name: (verify) Record verification completion
+  ansible.builtin.set_fact:
+    verification_end_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+    verification_duration: "{{ ((verification_end_time | to_datetime) - (verification_start_time | to_datetime)).total_seconds() | int }}"
+  tags:
+    - verify
+
+- name: (verify) Display verification summary
+  ansible.builtin.debug:
+    msg:
+      - "=== RÉSUMÉ DE LA VÉRIFICATION ==="
+      - "Switch: {{ final_hostname }}"
+      - "Statut global: {{ update_verification_summary.overall_status }}"
+      - "Score: {{ verification_score }}%"
+      - "Version finale: {{ final_version }}"
+      - "Version cible: {{ target_firmware_version }}"
+      - "Partition de boot: {{ final_default_image }}"
+      - "Durée vérification: {{ verification_duration }}s"
+      - "Vérifications critiques:"
+      - "  - Version correcte: {{ verification_results.get('version_correct', false) | ternary('✓', '✗') }}"
+      - "  - CLI fonctionnel: {{ verification_results.get('cli_functional', false) | ternary('✓', '✗') }}"
+      - "Vérifications optionnelles:"
+      - "  - Partition correcte: {{ verification_results.get('partition_correct', false) | ternary('✓', '✗') }}"
+      - "  - Boot partition correcte: {{ verification_results.get('boot_partition_correct', false) | ternary('✓', '✗') }}"
+      - "  - Système stable: {{ verification_results.get('system_stable', false) | ternary('✓', '✗') }}"
+  tags:
+    - verify

@@ -1,0 +1,234 @@
+---
+# Tâches de vérification des prérequis pour la mise à jour firmware
+
+- name: (prerequisites) Check Ansible collection for Aruba AOS-CX
+  ansible.builtin.command:
+    cmd: ansible-galaxy collection list arubanetworks.aoscx
+  register: collection_check
+  changed_when: false
+  failed_when: false
+  delegate_to: localhost
+  run_once: true
+  tags:
+    - check
+
+- name: (prerequisites) Install Aruba AOS-CX collection if missing
+  ansible.builtin.command:
+    cmd: ansible-galaxy collection install arubanetworks.aoscx
+  delegate_to: localhost
+  run_once: true
+  when: "'arubanetworks.aoscx' not in collection_check.stdout"
+  tags:
+    - check
+
+- name: (prerequisites) Verify required Python modules
+  ansible.builtin.pip:
+    name: 
+      - pyaoscx>=2.6.0
+      - jmespath
+    state: present
+  delegate_to: localhost
+  become: true
+  register: pip_result
+  failed_when: pip_result is failed
+  run_once: true
+  tags:
+    - check
+
+- name: (prerequisites) Check firmware file availability
+  block:
+    - name: (prerequisites) Verify local firmware file exists
+      ansible.builtin.stat:
+        path: "{{ firmware_file_path }}"
+      register: firmware_file_stat
+      delegate_to: localhost
+      when: upload_method == "local"
+      tags:
+        - check
+
+    - name: (prerequisites) Assert firmware file exists locally
+      ansible.builtin.assert:
+        that:
+          - firmware_file_stat.stat.exists
+          - firmware_file_stat.stat.size > 0
+        fail_msg: "Le fichier firmware {{ firmware_file_path }} n'existe pas ou est vide"
+        success_msg: "Fichier firmware trouvé: {{ firmware_file_path }} ({{ firmware_file_stat.stat.size }} bytes)"
+      when: upload_method == "local"
+      tags:
+        - check
+
+    - name: (prerequisites) Verify remote firmware URL accessibility
+      ansible.builtin.uri:
+        url: "{{ remote_firmware_url }}"
+        method: HEAD
+        status_code: 200
+      register: remote_firmware_check
+      delegate_to: localhost
+      when: upload_method == "remote"
+      tags:
+        - check
+
+  rescue:
+    - name: (prerequisites) Handle firmware file check failure
+      ansible.builtin.set_fact:
+        update_errors: "{{ update_errors + ['Firmware file not accessible: ' + (ansible_failed_result.msg | default('Unknown error'))] }}"
+      tags:
+        - check
+
+    - name: (prerequisites) Fail on firmware file issue
+      ansible.builtin.fail:
+        msg: "Impossible d'accéder au fichier firmware. Vérifiez le chemin ou l'URL."
+      tags:
+        - check
+
+- name: (prerequisites) Test connectivity to switch
+  block:
+    - name: (prerequisites) Basic connectivity test
+      arubanetworks.aoscx.aoscx_facts:
+        gather_subset:
+          - host_name
+      register: connectivity_test
+      retries: 3
+      delay: 10
+      until: connectivity_test is not failed
+      tags:
+        - check
+
+    - name: (prerequisites) Verify REST API is enabled
+      arubanetworks.aoscx.aoscx_command:
+        commands:
+          - "show https-server"
+      register: https_server_check
+      tags:
+        - check
+
+    - name: (prerequisites) Check if REST API is properly configured
+      ansible.builtin.assert:
+        that:
+          - "'rest access-mode read-write' in https_server_check.stdout[0] or 'access-mode read-write' in https_server_check.stdout[0]"
+        fail_msg: "L'API REST n'est pas configurée en mode read-write. Exécutez 'https-server rest access-mode read-write' sur le switch."
+        success_msg: "API REST correctement configurée"
+      tags:
+        - check
+
+  rescue:
+    - name: (prerequisites) Handle connectivity failure
+      ansible.builtin.set_fact:
+        update_errors: "{{ update_errors + ['Connectivity failed: ' + (ansible_failed_result.msg | default('Unable to connect to switch'))] }}"
+      tags:
+        - check
+
+    - name: (prerequisites) Fail on connectivity issue
+      ansible.builtin.fail:
+        msg: "Impossible de se connecter au switch {{ inventory_hostname }}. Vérifiez la connectivité et les credentials."
+      tags:
+        - check
+
+- name: (prerequisites) Check switch resource availability
+  block:
+    - name: (prerequisites) Gather system resource information
+      arubanetworks.aoscx.aoscx_command:
+        commands:
+          - "show system resource-utilization"
+          - "show image"
+      register: resource_check
+      tags:
+        - check
+
+    - name: (prerequisites) Extract free space information
+      ansible.builtin.set_fact:
+        current_free_space: >-
+          {%- set disk_output = resource_check.stdout[0] -%}
+          {%- for line in disk_output.split('\n') -%}
+            {%- if 'Primary' in line and 'MB free' in line -%}
+              {{ line | regex_search('(\d+)\s*MB free', '\1') | first | int }}
+            {%- endif -%}
+          {%- endfor -%}
+      tags:
+        - check
+
+    - name: (prerequisites) Get platform-specific minimum space requirement
+      ansible.builtin.set_fact:
+        required_space: >-
+          {%- set platform = ansible_net_platform_name | default('default') -%}
+          {%- for model, space in minimum_space_requirements.items() -%}
+            {%- if model in platform -%}
+              {{ space }}
+            {%- endif -%}
+          {%- else -%}
+            {{ minimum_space_requirements.default }}
+          {%- endfor -%}
+      tags:
+        - check
+
+    - name: (prerequisites) Verify sufficient disk space
+      ansible.builtin.assert:
+        that:
+          - current_free_space | int >= required_space | int
+        fail_msg: "Espace disque insuffisant. Disponible: {{ current_free_space }}MB, Requis: {{ required_space }}MB"
+        success_msg: "Espace disque suffisant: {{ current_free_space }}MB disponible"
+      when: current_free_space is defined
+      tags:
+        - check
+
+  rescue:
+    - name: (prerequisites) Handle resource check failure
+      ansible.builtin.set_fact:
+        update_errors: "{{ update_errors + ['Resource check failed: ' + (ansible_failed_result.msg | default('Unable to check system resources'))] }}"
+      tags:
+        - check
+
+    - name: (prerequisites) Log resource check warning
+      ansible.builtin.debug:
+        msg: "ATTENTION: Impossible de vérifier les ressources système. La mise à jour peut échouer par manque d'espace."
+      tags:
+        - check
+
+- name: (prerequisites) Validate repository server configuration
+  block:
+    - name: (prerequisites) Test repository server connectivity
+      ansible.builtin.wait_for:
+        host: "{{ repository_server }}"
+        port: "{{ repository_port }}"
+        timeout: 10
+      delegate_to: localhost
+      when: 
+        - repository_server | length > 0
+        - backup_config | bool or generate_report | bool
+      tags:
+        - check
+
+    - name: (prerequisites) Verify repository path exists
+      ansible.builtin.file:
+        path: "{{ repository_path }}"
+        state: directory
+        mode: '0755'
+      delegate_to: "{{ repository_server }}"
+      become: true
+      when: 
+        - repository_server | length > 0
+        - backup_config | bool or generate_report | bool
+      tags:
+        - check
+
+  rescue:
+    - name: (prerequisites) Handle repository check failure
+      ansible.builtin.debug:
+        msg: "ATTENTION: Serveur de dépôt non accessible. Les sauvegardes et rapports seront stockés localement."
+      tags:
+        - check
+
+- name: (prerequisites) Prerequisites validation summary
+  ansible.builtin.debug:
+    msg:
+      - "=== VÉRIFICATION DES PRÉREQUIS ==="
+      - "Switch: {{ inventory_hostname }}"
+      - "Connectivité: ✓"
+      - "API REST: ✓"
+      - "Fichier firmware: ✓"
+      - "Espace disque: {{ current_free_space | default('Non vérifié') }}MB"
+      - "Collections Ansible: ✓"
+      - "Modules Python: ✓"
+      - "Serveur de dépôt: {{ '✓' if repository_server | length > 0 else 'Non configuré' }}"
+  tags:
+    - check
