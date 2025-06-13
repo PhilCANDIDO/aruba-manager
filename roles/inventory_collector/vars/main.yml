@@ -25,14 +25,15 @@ colonnes_excel:
     cle: "adresse_ip"
     largeur: 15
 
-# Configuration pour le module aoscx_facts
+# Configuration CORRIGÉE pour le module aoscx_facts
 facts_gather_subset:
-  - hardware         # Pour obtenir le modèle et numéro de série
-  - host_name        # Pour obtenir le nom d'hôte
-  - platform_name    # Pour obtenir la plateforme
-  - version          # Pour obtenir la version OS
+  - product_info      # Pour obtenir le modèle et numéro de série (remplace hardware)
+  - host_name         # Pour obtenir le nom d'hôte
+  - platform_name     # Pour obtenir la plateforme
+  - software_version  # Pour obtenir la version OS (remplace version)
 
 # Mapping des clés Ansible facts vers nos variables
+# ATTENTION : Les clés exactes peuvent varier selon la version du module
 facts_mapping:
   hostname: "ansible_net_hostname"
   model: "ansible_net_model"

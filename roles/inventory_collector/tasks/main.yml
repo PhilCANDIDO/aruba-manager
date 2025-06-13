@@ -1,5 +1,38 @@
 ---
 # Tâches principales pour le rôle inventory_collector
+## DEBUG
+- name: (debug) Test aoscx_facts with minimal subset
+  arubanetworks.aoscx.aoscx_facts:
+    gather_subset:
+      - host_name
+  register: debug_facts
+  tags:
+    - debug
+    - never
+
+- name: (debug) Display all available facts keys
+  ansible.builtin.debug:
+    var: debug_facts.ansible_facts
+  tags:
+    - debug
+    - never
+
+- name: (debug) Test with product_info
+  arubanetworks.aoscx.aoscx_facts:
+    gather_subset:
+      - product_info
+  register: product_debug_facts
+  tags:
+    - debug
+    - never
+
+- name: (debug) Display product_info facts
+  ansible.builtin.debug:
+    var: product_debug_facts.ansible_facts
+  tags:
+    - debug
+    - never
+## DEBUG
 
 - name: (main) Checking prerequisites
   block:

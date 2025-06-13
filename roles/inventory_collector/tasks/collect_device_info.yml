@@ -14,10 +14,10 @@
     - name: (collect_device_info) Gather system facts using aoscx_facts module
       arubanetworks.aoscx.aoscx_facts:
         gather_subset:
-          - hardware
-          - host_name
-          - platform_name
-          - version
+          - product_info      # Informations produit (modèle, série)
+          - host_name         # Nom d'hôte
+          - platform_name     # Nom de la plateforme
+          - software_version  # Version logicielle
         gather_network_resources: []
       register: device_facts
       retries: "{{ max_tentatives }}"
@@ -41,19 +41,23 @@
           }}
         model_extracted: >-
           {{
-            device_facts.ansible_facts.get('ansible_net_model', 'N/A')
+            device_facts.ansible_facts.get('ansible_net_model', 
+              device_facts.ansible_facts.get('ansible_net_product_info', {}).get('base_model', 'N/A'))
           }}
         serial_extracted: >-
           {{
-            device_facts.ansible_facts.get('ansible_net_serialnum', 'N/A')
+            device_facts.ansible_facts.get('ansible_net_serialnum',
+              device_facts.ansible_facts.get('ansible_net_product_info', {}).get('serial_number', 'N/A'))
           }}
         version_extracted: >-
           {{
-            device_facts.ansible_facts.get('ansible_net_version', 'N/A')
+            device_facts.ansible_facts.get('ansible_net_version',
+              device_facts.ansible_facts.get('ansible_net_software_version', 'N/A'))
           }}
         platform_extracted: >-
           {{
-            device_facts.ansible_facts.get('ansible_net_system', 'N/A')
+            device_facts.ansible_facts.get('ansible_net_system',
+              device_facts.ansible_facts.get('ansible_net_platform_name', 'N/A'))
           }}
       tags:
         - collect
