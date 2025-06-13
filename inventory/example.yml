@@ -1,0 +1,49 @@
+---
+# inventory/switches.yml
+
+# Groupe des switches Aruba à inventorier
+switches_aruba:
+  hosts:
+    switch01:
+      ansible_host: 192.168.16.2
+    # Ajoutez d'autres switches ici si nécessaire
+    # switch02:
+    #   ansible_host: 192.168.16.2
+
+  vars:
+    ansible_connection: arubanetworks.aoscx.aoscx
+    ansible_network_os: arubanetworks.aoscx.aoscx
+    ansible_become: false
+    ansible_user: "{{ aruba_user }}"
+    ansible_password: "{{ aruba_password }}"
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+# Groupe pour le serveur de dépôt (managed node)
+repository_servers:
+  hosts:
+    ansible-srv:
+      ansible_host: 192.168.16.250
+      
+  vars:
+    ansible_connection: ssh
+    ansible_user: "{{ repository_user }}"
+    ansible_password: "{{ repository_password }}"
+    ansible_become: true
+    ansible_become_user: root
+    ansible_become_password: "{{ repository_become_password }}"
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+# Groupe global pour regrouper tous les hôtes
+all:
+  children:
+    switches_aruba:
+    repository_servers:
+  vars:
+    # Variables globales pour la configuration du dépôt
+    repository_server: ansible-srv
+    repository_path: /opt/aruba_reports/inventory
+    repository_user: "{{ repository_user }}"
+    # Paramètres de connexion par défaut
+    max_tentatives: 3
+    delai_attente: 60
+    cleanup_temp_files: true

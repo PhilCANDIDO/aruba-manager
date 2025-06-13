@@ -121,3 +121,138 @@
       ansible.builtin.pause:
         seconds: "{{ post_reboot_wait }}"
       tags:
+        - reboot
+
+    - name: (reboot) Test API connectivity after reboot
+      arubanetworks.aoscx.aoscx_facts:
+        gather_subset:
+          - host_name
+      register: connectivity_test
+      retries: 5
+      delay: 15
+      until: connectivity_test is not failed
+      tags:
+        - reboot
+
+    - name: (reboot) Log successful API reconnection
+      ansible.builtin.debug:
+        msg: "✓ Connexion API restaurée - Switch accessible"
+      tags:
+        - reboot
+
+  rescue:
+    - name: (reboot) Handle reboot timeout
+      ansible.builtin.set_fact:
+        update_errors: "{{ update_errors + ['Reboot timeout: Switch did not come back online within ' + (estimated_reboot_time | string) + ' seconds'] }}"
+        update_status: "reboot_timeout"
+      tags:
+        - reboot
+
+    - name: (reboot) Log reboot failure
+      ansible.builtin.debug:
+        msg:
+          - "✗ ÉCHEC DU REDÉMARRAGE"
+          - "Switch non accessible après {{ estimated_reboot_time }}s"
+          - "Intervention manuelle requise"
+      tags:
+        - reboot
+
+    - name: (reboot) Critical reboot failure
+      ansible.builtin.fail:
+        msg: "Switch inaccessible après redémarrage - intervention manuelle requise"
+      tags:
+        - reboot
+
+- name: (reboot) Verify reboot success
+  block:
+    - name: (reboot) Collect post-reboot system information
+      arubanetworks.aoscx.aoscx_facts:
+        gather_subset:
+          - software_version
+          - software_images
+          - host_name
+      register: post_reboot_facts
+      tags:
+        - reboot
+
+    - name: (reboot) Extract post-reboot information
+      ansible.builtin.set_fact:
+        post_reboot_version: >-
+          {{
+            post_reboot_facts.ansible_facts.get('ansible_net_software_version', 'Unknown')
+          }}
+        post_reboot_hostname: >-
+          {{
+            post_reboot_facts.ansible_facts.get('ansible_net_hostname', 'Unknown')
+          }}
+        post_reboot_images: >-
+          {{
+            post_reboot_facts.ansible_facts.get('ansible_net_software_images', {})
+          }}
+      tags:
+        - reboot
+
+    - name: (reboot) Verify correct firmware version is running
+      ansible.builtin.assert:
+        that:
+          - post_reboot_version == target_firmware_version
+        fail_msg: "Switch redémarré mais version incorrecte: {{ post_reboot_version }} au lieu de {{ target_firmware_version }}"
+        success_msg: "✓ Switch redémarré avec la version cible: {{ target_firmware_version }}"
+      tags:
+        - reboot
+
+    - name: (reboot) Verify correct boot partition
+      ansible.builtin.assert:
+        that:
+          - post_reboot_images.get('default_image', 'Unknown') == chosen_partition
+        fail_msg: "Partition de boot incorrecte: {{ post_reboot_images.get('default_image', 'Unknown') }} au lieu de {{ chosen_partition }}"
+        success_msg: "✓ Partition de boot correcte: {{ chosen_partition }}"
+      tags:
+        - reboot
+
+  rescue:
+    - name: (reboot) Handle verification failure
+      ansible.builtin.set_fact:
+        update_errors: "{{ update_errors + ['Post-reboot verification failed: ' + (ansible_failed_result.msg | default('Unknown verification error'))] }}"
+        update_status: "verification_failed"
+      tags:
+        - reboot
+
+    - name: (reboot) Log verification failure
+      ansible.builtin.debug:
+        msg:
+          - "✗ ÉCHEC DE LA VÉRIFICATION POST-REDÉMARRAGE"
+          - "Version détectée: {{ post_reboot_version | default('Unknown') }}"
+          - "Version attendue: {{ target_firmware_version }}"
+          - "Partition de boot: {{ post_reboot_images.get('default_image', 'Unknown') | default('Unknown') }}"
+      tags:
+        - reboot
+
+- name: (reboot) Record reboot completion metrics
+  ansible.builtin.set_fact:
+    reboot_end_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+    reboot_duration: "{{ ((reboot_end_time | to_datetime) - (reboot_start_time | to_datetime)).total_seconds() | int }}"
+    reboot_verification:
+      success: "{{ update_status not in ['reboot_failed', 'reboot_timeout', 'verification_failed'] }}"
+      duration: "{{ ((reboot_end_time | to_datetime) - (reboot_start_time | to_datetime)).total_seconds() | int }}"
+      boot_partition: "{{ post_reboot_images.get('default_image', 'Unknown') | default('Unknown') }}"
+      running_version: "{{ post_reboot_version | default('Unknown') }}"
+      error: "{{ ansible_failed_result.msg | default('') if update_status in ['reboot_failed', 'reboot_timeout', 'verification_failed'] else '' }}"
+  tags:
+    - reboot
+
+- name: (reboot) Display reboot summary
+  ansible.builtin.debug:
+    msg:
+      - "=== RÉSUMÉ DU REDÉMARRAGE ==="
+      - "Switch: {{ post_reboot_hostname | default(current_hostname) }}"
+      - "Statut: {{ '✓ RÉUSSI' if reboot_verification.success else '✗ ÉCHEC' }}"
+      - "Durée: {{ reboot_duration }}s ({{ (reboot_duration / 60) | round(1) }}min)"
+      - "Version en cours: {{ post_reboot_version | default('N/A') }}"
+      - "Partition de boot: {{ reboot_verification.boot_partition }}"
+      - "Changement effectué: {{ will_change_boot_partition | ternary('OUI', 'NON') }}"
+      {% if not reboot_verification.success %}
+      - "Erreur: {{ reboot_verification.error }}"
+      {% endif %}
+  tags:
+    - reboot
