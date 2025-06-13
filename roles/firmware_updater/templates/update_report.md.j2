@@ -97,18 +97,15 @@
 ❌ **Échec** ({{ verification_score | default(0) }}%)
 {% endif %}
 
-#### Détails des vérifications
+## Détails des vérifications
 {% for check, result in verification_results.items() %}
-{% if check != 'overall' and check != 'state_comparison' %}
+{%- if check != 'overall' and check != 'state_comparison' %}
 - {{ check.replace('_', ' ').title() }}: {{ result.status | default(false) | ternary('✓', '✗') }}
-{% if not result.status | default(true) and result.error is defined %}
+{%- if not result.status | default(true) and result.error is defined %}
   - Erreur: {{ result.error }}
-{% endif %}
-{% endif %}
+{%- endif %}
+{%- endif %}
 {% endfor %}
-{% else %}
-⏭️ **Ignorée** - Vérification désactivée
-{% endif %}
 
 ## État Après Mise à Jour
 
@@ -135,11 +132,11 @@
 
 ## Erreurs et Avertissements
 
-{% if update_errors | length > 0 %}
-{% for error in update_errors %}
+{% if update_errors | length > 0 -%}
+{% for error in update_errors -%}
 ❌ {{ error }}
 {% endfor %}
-{% else %}
+{%- else -%}
 ✅ Aucune erreur signalée
 {% endif %}
 

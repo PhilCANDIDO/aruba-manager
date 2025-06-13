@@ -316,11 +316,6 @@
       - "Actions réussies: {{ cleanup_actions | selectattr('success', 'equalto', true) | list | length }}"
       - "Actions échouées: {{ cleanup_actions | selectattr('success', 'equalto', false) | list | length }}"
       - "Détails des actions:"
-      {% for action in cleanup_actions %}
-      - "  - {{ action.action }}: {{ action.success | ternary('✓', '✗') }}"
-      {% if not action.success and action.error is defined %}
-      - "    Erreur: {{ action.error }}"
-      {% endif %}
-      {% endfor %}
+      - "{{ cleanup_actions | map('regex_replace', '^(.*)$', '  - \\1') | join('\n') }}"
   tags:
     - cleanup

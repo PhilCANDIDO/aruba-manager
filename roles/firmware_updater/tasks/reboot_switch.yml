@@ -251,8 +251,6 @@
       - "Version en cours: {{ post_reboot_version | default('N/A') }}"
       - "Partition de boot: {{ reboot_verification.boot_partition }}"
       - "Changement effectué: {{ will_change_boot_partition | ternary('OUI', 'NON') }}"
-      {% if not reboot_verification.success %}
-      - "Erreur: {{ reboot_verification.error }}"
-      {% endif %}
+      - "{{ 'Erreur: ' + reboot_verification.error if not reboot_verification.success and reboot_verification.error | default('') | length > 0 else '' }}"
   tags:
     - reboot
