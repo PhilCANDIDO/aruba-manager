@@ -1,4 +1,5 @@
 ---
+# roles/inventory_collector/tasks/collect_device_info.yml
 # Tâche pour collecter les informations des équipements Aruba via le module aoscx_facts
 
 - name: (collect_device_info) Initialize switches data list
@@ -33,31 +34,38 @@
         - collect
         - debug
 
-    - name: (collect_device_info) Extract device information from facts
+    - name: (collect_device_info) Extract device information from facts - CORRECTED
       ansible.builtin.set_fact:
         hostname_extracted: >-
           {{
             device_facts.ansible_facts.get('ansible_net_hostname', inventory_hostname)
           }}
+        # Le modèle vient du chassis product_info
         model_extracted: >-
           {{
-            device_facts.ansible_facts.get('ansible_net_model', 
-              device_facts.ansible_facts.get('ansible_net_product_info', {}).get('base_model', 'N/A'))
+            device_facts.ansible_facts.get('ansible_net_product_info', {}).get('chassis,1', {}).get('product_name', 'N/A')
           }}
+        # Le numéro de série vient aussi du chassis
         serial_extracted: >-
           {{
-            device_facts.ansible_facts.get('ansible_net_serialnum',
-              device_facts.ansible_facts.get('ansible_net_product_info', {}).get('serial_number', 'N/A'))
+            device_facts.ansible_facts.get('ansible_net_product_info', {}).get('chassis,1', {}).get('serial_number', 'N/A')
           }}
         version_extracted: >-
           {{
-            device_facts.ansible_facts.get('ansible_net_version',
-              device_facts.ansible_facts.get('ansible_net_software_version', 'N/A'))
+            device_facts.ansible_facts.get('ansible_net_software_version', 'N/A')
           }}
         platform_extracted: >-
           {{
-            device_facts.ansible_facts.get('ansible_net_system',
-              device_facts.ansible_facts.get('ansible_net_platform_name', 'N/A'))
+            device_facts.ansible_facts.get('ansible_net_platform_name', 'N/A')
+          }}
+        # Informations supplémentaires pour le modèle complet
+        product_description: >-
+          {{
+            device_facts.ansible_facts.get('ansible_net_product_info', {}).get('chassis,1', {}).get('product_description', 'N/A')
+          }}
+        part_number: >-
+          {{
+            device_facts.ansible_facts.get('ansible_net_product_info', {}).get('chassis,1', {}).get('part_number', 'N/A')
           }}
       tags:
         - collect
@@ -70,6 +78,8 @@
           serial: "{{ serial_extracted }}"
           version_os: "{{ version_extracted }}"
           platform: "{{ platform_extracted }}"
+          part_number: "{{ part_number }}"
+          product_description: "{{ product_description }}"
           date_collecte: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
           adresse_ip: "{{ inventory_hostname }}"
       tags:
@@ -89,6 +99,8 @@
           - "Serial: {{ serial_extracted }}"
           - "Version: {{ version_extracted }}"
           - "Platform: {{ platform_extracted }}"
+          - "Part Number: {{ part_number }}"
+          - "Description: {{ product_description }}"
       tags:
         - collect
         - debug
@@ -110,8 +122,11 @@
           serial: "ÉCHEC DE COLLECTE"
           version_os: "ÉCHEC DE COLLECTE"
           platform: "ÉCHEC DE COLLECTE"
+          part_number: "ÉCHEC DE COLLECTE"
+          product_description: "ÉCHEC DE COLLECTE"
           date_collecte: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
           adresse_ip: "{{ inventory_hostname }}"
           erreur: "{{ ansible_failed_result.msg | default('Erreur de connexion') }}"
       tags:
         - collect
+

@@ -1,4 +1,5 @@
 ---
+# roles/inventory_collector/tasks/validate_data.yml
 # Tâche pour valider les données collectées
 
 - name: (validate_data) Ensure jmespath is installed
@@ -71,7 +72,7 @@
   tags:
     - validate
 
-- name: (validate_data) Check for duplicate serial numbers
+- name: (validate_data) Extract valid serial numbers
   ansible.builtin.set_fact:
     all_serials: >-
       {{
@@ -79,6 +80,8 @@
         | map(attribute='serial') 
         | select('ne', 'N/A') 
         | select('ne', 'ÉCHEC DE COLLECTE') 
+        | select('ne', 'Unknown')
+        | select('ne', '')
         | list
       }}
   run_once: true
@@ -86,14 +89,21 @@
   tags:
     - validate
 
-- name: (validate_data) Find duplicate serial numbers
+- name: (validate_data) Find duplicate serial numbers using Python
   ansible.builtin.set_fact:
     duplicate_serials: >-
+      {%- set serial_counts = {} -%}
+      {%- for serial in all_serials -%}
+        {%- if serial in serial_counts -%}
+          {%- set _ = serial_counts.update({serial: serial_counts[serial] + 1}) -%}
+        {%- else -%}
+          {%- set _ = serial_counts.update({serial: 1}) -%}
+        {%- endif -%}
+      {%- endfor -%}
       {{
-        all_serials 
-        | groupby 
-        | selectattr('1', 'length', '>', 1) 
-        | map(attribute='0') 
+        serial_counts | dict2items 
+        | selectattr('value', '>', 1) 
+        | map(attribute='key') 
         | list
       }}
   run_once: true
@@ -122,3 +132,4 @@
   delegate_to: localhost
   tags:
     - validate
+

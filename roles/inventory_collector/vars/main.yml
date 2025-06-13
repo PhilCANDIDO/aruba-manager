@@ -1,14 +1,21 @@
 ---
+# roles/inventory_collector/vars/main.yml
 # Variables pour le rôle inventory_collector
 
-# Structure des colonnes du fichier Excel (mise à jour avec platform)
+# Structure des colonnes du fichier Excel (mise à jour avec les nouveaux champs)
 colonnes_excel:
   - nom: "Nom du Switch"
     cle: "nom_switch"
     largeur: 20
   - nom: "Modèle"
     cle: "modele"
+    largeur: 25
+  - nom: "Référence"
+    cle: "part_number"
     largeur: 15
+  - nom: "Description"
+    cle: "product_description"
+    largeur: 40
   - nom: "Plateforme"
     cle: "platform"
     largeur: 15
@@ -25,21 +32,22 @@ colonnes_excel:
     cle: "adresse_ip"
     largeur: 15
 
-# Configuration CORRIGÉE pour le module aoscx_facts
+# Configuration pour le module aoscx_facts
 facts_gather_subset:
-  - product_info      # Pour obtenir le modèle et numéro de série (remplace hardware)
+  - product_info      # Pour obtenir le modèle et numéro de série
   - host_name         # Pour obtenir le nom d'hôte
   - platform_name     # Pour obtenir la plateforme
-  - software_version  # Pour obtenir la version OS (remplace version)
+  - software_version  # Pour obtenir la version OS
 
-# Mapping des clés Ansible facts vers nos variables
-# ATTENTION : Les clés exactes peuvent varier selon la version du module
+# Mapping des clés Ansible facts vers nos variables (basé sur les vrais facts)
 facts_mapping:
   hostname: "ansible_net_hostname"
-  model: "ansible_net_model"
-  serial: "ansible_net_serialnum"
-  version: "ansible_net_version"
-  platform: "ansible_net_system"
+  model: "ansible_net_product_info.chassis,1.product_name"
+  serial: "ansible_net_product_info.chassis,1.serial_number"
+  version: "ansible_net_software_version"
+  platform: "ansible_net_platform_name"
+  part_number: "ansible_net_product_info.chassis,1.part_number"
+  product_description: "ansible_net_product_info.chassis,1.product_description"
 
 # Configuration de fallback si aoscx_facts échoue
 # (conservé pour compatibilité descendante)
