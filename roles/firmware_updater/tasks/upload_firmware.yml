@@ -1,5 +1,5 @@
 ---
-# Tâches d'upload du firmware
+# Tâches d'upload du firmware avec debug amélioré
 
 - name: (upload) Skip firmware upload if already present
   block:
@@ -56,6 +56,57 @@
       tags:
         - upload
 
+# NOUVEAU: Debug état avant upload
+- name: (upload) Debug firmware state BEFORE upload
+  block:
+    - name: (upload) Collect current firmware state before upload
+      arubanetworks.aoscx.aoscx_facts:
+        gather_subset:
+          - software_images
+      register: before_upload_facts
+      tags:
+        - upload
+        - debug
+
+    - name: (upload) Extract BEFORE upload partition information
+      ansible.builtin.set_fact:
+        before_upload_primary: >-
+          {{
+            before_upload_facts.ansible_facts.get('ansible_net_software_images', {}).get('primary_image_version', 'Not installed')
+          }}
+        before_upload_secondary: >-
+          {{
+            before_upload_facts.ansible_facts.get('ansible_net_software_images', {}).get('secondary_image_version', 'Not installed')
+          }}
+        before_upload_default: >-
+          {{
+            before_upload_facts.ansible_facts.get('ansible_net_software_images', {}).get('default_image', 'primary')
+          }}
+      tags:
+        - upload
+        - debug
+
+    - name: (upload) Display BEFORE upload state
+      ansible.builtin.debug:
+        msg:
+          - "=== ÉTAT AVANT UPLOAD ==="
+          - "Primary partition: {{ before_upload_primary }}"
+          - "Secondary partition: {{ before_upload_secondary }}"
+          - "Default image: {{ before_upload_default }}"
+          - "Target version: {{ target_firmware_version }}"
+          - "Target partition: {{ chosen_partition }}"
+          - "Expected after upload: {{ chosen_partition }} should contain {{ target_firmware_version }}"
+      tags:
+        - upload
+        - debug
+
+  rescue:
+    - name: (upload) Handle before upload debug failure
+      ansible.builtin.debug:
+        msg: "ATTENTION: Impossible de collecter l'état avant upload"
+      tags:
+        - upload
+
 - name: (upload) Upload firmware to switch
   block:
     - name: (upload) Upload firmware from local file
@@ -83,11 +134,17 @@
       tags:
         - upload
 
-    - name: (upload) debug firmware_upload_result
+    - name: (upload) Debug firmware_upload_result
       ansible.builtin.debug:
-        msg: "Résultat de l'upload: {{ firmware_upload_result }}"
+        msg:
+          - "=== RÉSULTAT MODULE UPLOAD ==="
+          - "Upload successful: {{ firmware_upload_result is succeeded }}"
+          - "Upload failed: {{ firmware_upload_result is failed }}"
+          - "Upload changed: {{ firmware_upload_result is changed }}"
+          - "Module result: {{ firmware_upload_result }}"
       tags:
         - upload
+        - debug
         
     - name: (upload) Record upload completion time
       ansible.builtin.set_fact:
@@ -214,23 +271,35 @@
           tags:
             - upload
 
+# AMÉLIORÉ: Vérification post-upload avec debug détaillé
 - name: (upload) Verify firmware upload
   block:
-    - name: (upload) Wait for upload completion verification
+    - name: (upload) Wait for upload completion and system stabilization
       ansible.builtin.pause:
-        seconds: 30
+        seconds: 45
+        prompt: "Attente stabilisation système après upload (45s)..."
       tags:
         - upload
 
-    - name: (upload) Verify firmware was uploaded successfully
+    - name: (upload) Verify firmware was uploaded successfully - First attempt
       arubanetworks.aoscx.aoscx_facts:
         gather_subset:
           - software_images
       register: post_upload_facts
-      retries: 3
-      delay: 10
+      retries: 5
+      delay: 15
       tags:
         - upload
+
+    - name: (upload) Debug raw post-upload facts
+      ansible.builtin.debug:
+        msg:
+          - "=== RAW POST-UPLOAD FACTS ==="
+          - "Full ansible_facts: {{ post_upload_facts.ansible_facts }}"
+          - "Software images structure: {{ post_upload_facts.ansible_facts.get('ansible_net_software_images', 'NOT FOUND') }}"
+      tags:
+        - upload
+        - debug
 
     - name: (upload) Extract updated partition information
       ansible.builtin.set_fact:
@@ -242,20 +311,172 @@
           {{
             post_upload_facts.ansible_facts.get('ansible_net_software_images', {}).get('secondary_image_version', 'Unknown')
           }}
+        updated_default_image: >-
+          {{
+            post_upload_facts.ansible_facts.get('ansible_net_software_images', {}).get('default_image', 'Unknown')
+          }}
       tags:
         - upload
 
-    - name: (upload) Verify target firmware is on target partition
-      ansible.builtin.assert:
-        that:
-          - >-
-            (chosen_partition == 'primary' and updated_primary_version == target_firmware_version) or
-            (chosen_partition == 'secondary' and updated_secondary_version == target_firmware_version)
-        fail_msg: "Firmware upload verification failed - target version not found on partition {{ chosen_partition }}"
-        success_msg: "✓ Firmware upload verified successfully on partition {{ chosen_partition }}"
-      when: verify_upload | bool
+    - name: (upload) Debug AFTER upload state with comparaison
+      ansible.builtin.debug:
+        msg:
+          - "=== COMPARAISON AVANT/APRÈS UPLOAD ==="
+          - "AVANT Upload:"
+          - "  Primary: {{ before_upload_primary | default('N/A') }}"
+          - "  Secondary: {{ before_upload_secondary | default('N/A') }}"
+          - "  Default: {{ before_upload_default | default('N/A') }}"
+          - "APRÈS Upload:"
+          - "  Primary: {{ updated_primary_version }}"
+          - "  Secondary: {{ updated_secondary_version }}"
+          - "  Default: {{ updated_default_image }}"
+          - "VERIFICATION:"
+          - "  Target version: {{ target_firmware_version }}"
+          - "  Target partition: {{ chosen_partition }}"
+          - "  Expected on {{ chosen_partition }}: {{ target_firmware_version }}"
+          - "  Actually on primary: {{ updated_primary_version }}"
+          - "  Actually on secondary: {{ updated_secondary_version }}"
+          - "  Version matches primary: {{ updated_primary_version == target_firmware_version }}"
+          - "  Version matches secondary: {{ updated_secondary_version == target_firmware_version }}"
+          - "  PRIMARY condition: {{ chosen_partition == 'primary' and updated_primary_version == target_firmware_version }}"
+          - "  SECONDARY condition: {{ chosen_partition == 'secondary' and updated_secondary_version == target_firmware_version }}"
+          - "  Overall condition result: {{ (chosen_partition == 'primary' and updated_primary_version == target_firmware_version) or (chosen_partition == 'secondary' and updated_secondary_version == target_firmware_version) }}"
       tags:
         - upload
+        - debug
+
+    # NOUVEAU: Vérification alternative via CLI si l'API facts échoue
+    - name: (upload) Alternative verification via CLI commands
+      block:
+        - name: (upload) Get firmware info via CLI as backup verification
+          arubanetworks.aoscx.aoscx_command:
+            commands:
+              - "show image"
+              - "show version"
+          register: cli_firmware_verification
+          vars:
+            ansible_connection: network_cli
+          tags:
+            - upload
+
+        - name: (upload) Debug CLI verification output
+          ansible.builtin.debug:
+            msg:
+              - "=== CLI VERIFICATION OUTPUT ==="
+              - "Show image output:"
+              - "{{ cli_firmware_verification.stdout[0] }}"
+              - "---"
+              - "Show version output:"
+              - "{{ cli_firmware_verification.stdout[1] }}"
+          tags:
+            - upload
+            - debug
+
+        - name: (upload) Parse CLI image information
+          ansible.builtin.set_fact:
+            cli_primary_version: >-
+              {%- set image_output = cli_firmware_verification.stdout[0] -%}
+              {%- for line in image_output.split('\n') -%}
+                {%- if 'Primary' in line and 'Version' in line -%}
+                  {{ line | regex_search('Version\\s+(\\S+)', '\\1') | first | default('Unknown') }}
+                {%- endif -%}
+              {%- endfor -%}
+            cli_secondary_version: >-
+              {%- set image_output = cli_firmware_verification.stdout[0] -%}
+              {%- for line in image_output.split('\n') -%}
+                {%- if 'Secondary' in line and 'Version' in line -%}
+                  {{ line | regex_search('Version\\s+(\\S+)', '\\1') | first | default('Unknown') }}
+                {%- endif -%}
+              {%- endfor -%}
+          tags:
+            - upload
+
+        - name: (upload) Compare API vs CLI results
+          ansible.builtin.debug:
+            msg:
+              - "=== COMPARAISON API vs CLI ==="
+              - "API Primary: {{ updated_primary_version }}"
+              - "CLI Primary: {{ cli_primary_version }}"
+              - "API Secondary: {{ updated_secondary_version }}"
+              - "CLI Secondary: {{ cli_secondary_version }}"
+              - "API/CLI Primary match: {{ updated_primary_version == cli_primary_version }}"
+              - "API/CLI Secondary match: {{ updated_secondary_version == cli_secondary_version }}"
+          tags:
+            - upload
+            - debug
+
+      rescue:
+        - name: (upload) CLI verification failed
+          ansible.builtin.debug:
+            msg: "CLI verification also failed, continuing with API results"
+          tags:
+            - upload
+
+    # MODIFIÉ: Condition de vérification avec debug plus détaillé
+    - name: (upload) Verify target firmware is on target partition
+      block:
+        - name: (upload) Check verification condition step by step
+          ansible.builtin.debug:
+            msg:
+              - "=== VÉRIFICATION DÉTAILLÉE ==="
+              - "Chosen partition: '{{ chosen_partition }}'"
+              - "Target version: '{{ target_firmware_version }}'"
+              - "Updated primary version: '{{ updated_primary_version }}'"
+              - "Updated secondary version: '{{ updated_secondary_version }}'"
+              - "String equality checks:"
+              - "  Primary == Target: {{ updated_primary_version == target_firmware_version }}"
+              - "  Secondary == Target: {{ updated_secondary_version == target_firmware_version }}"
+              - "Condition checks:"
+              - "  Is chosen partition 'primary': {{ chosen_partition == 'primary' }}"
+              - "  Is chosen partition 'secondary': {{ chosen_partition == 'secondary' }}"
+              - "  Primary condition: {{ chosen_partition == 'primary' and updated_primary_version == target_firmware_version }}"
+              - "  Secondary condition: {{ chosen_partition == 'secondary' and updated_secondary_version == target_firmware_version }}"
+              - "Final result: {{ (chosen_partition == 'primary' and updated_primary_version == target_firmware_version) or (chosen_partition == 'secondary' and updated_secondary_version == target_firmware_version) }}"
+          tags:
+            - upload
+
+        - name: (upload) Apply the verification assertion
+          ansible.builtin.assert:
+            that:
+              - >-
+                (chosen_partition == 'primary' and updated_primary_version == target_firmware_version) or
+                (chosen_partition == 'secondary' and updated_secondary_version == target_firmware_version)
+            fail_msg: |
+              Firmware upload verification failed:
+              - Target partition: {{ chosen_partition }}
+              - Target version: {{ target_firmware_version }}
+              - Primary partition version: {{ updated_primary_version }}
+              - Secondary partition version: {{ updated_secondary_version }}
+              - Expected: {{ target_firmware_version }} on {{ chosen_partition }} partition
+              - Found: {{ updated_primary_version if chosen_partition == 'primary' else updated_secondary_version }} on {{ chosen_partition }} partition
+            success_msg: "✓ Firmware upload verified successfully on partition {{ chosen_partition }} with version {{ target_firmware_version }}"
+          when: verify_upload | bool
+          tags:
+            - upload
+
+      rescue:
+        - name: (upload) Handle verification assertion failure
+          ansible.builtin.debug:
+            msg:
+              - "✗ ÉCHEC DE VÉRIFICATION DÉTECTÉ"
+              - "Vérification d'upload échouée mais upload peut avoir réussi"
+              - "Problème possible:"
+              - "  1. Délai d'attente insuffisant (45s)"
+              - "  2. Format de version différent"
+              - "  3. Partition incorrecte utilisée"
+              - "  4. Problème avec l'API facts du switch"
+              - "Actions recommandées:"
+              - "  1. Vérifier manuellement: 'show image' sur le switch"
+              - "  2. Comparer les versions exactes"
+              - "  3. Vérifier les logs du switch"
+          tags:
+            - upload
+
+        - name: (upload) Re-raise the verification error
+          ansible.builtin.fail:
+            msg: "{{ ansible_failed_result.msg | default('Verification failed with unknown error') }}"
+          tags:
+            - upload
 
     - name: (upload) Store upload verification results
       ansible.builtin.set_fact:
@@ -268,6 +489,12 @@
               (chosen_partition == 'primary' and updated_primary_version == target_firmware_version) or
               (chosen_partition == 'secondary' and updated_secondary_version == target_firmware_version)
             }}
+          before_state:
+            primary: "{{ before_upload_primary | default('N/A') }}"
+            secondary: "{{ before_upload_secondary | default('N/A') }}"
+          after_state:
+            primary: "{{ updated_primary_version }}"
+            secondary: "{{ updated_secondary_version }}"
       tags:
         - upload
 
@@ -278,6 +505,11 @@
         upload_verification:
           verified: false
           error: "{{ ansible_failed_result.msg | default('Verification failed') }}"
+          primary_version: "{{ updated_primary_version | default('Unknown') }}"
+          secondary_version: "{{ updated_secondary_version | default('Unknown') }}"
+          before_state:
+            primary: "{{ before_upload_primary | default('N/A') }}"
+            secondary: "{{ before_upload_secondary | default('N/A') }}"
       tags:
         - upload
 
@@ -305,5 +537,7 @@
       - "Vérification: {{ '✓' if upload_verification.verified | default(false) else '✗' }}"
       - "Version Primary: {{ updated_primary_version | default('N/A') }}"
       - "Version Secondary: {{ updated_secondary_version | default('N/A') }}"
+      - "{{ 'Changement Primary: ' + before_upload_primary | default('N/A') + ' → ' + updated_primary_version | default('N/A') if upload_verification.before_state is defined }}"
+      - "{{ 'Changement Secondary: ' + before_upload_secondary | default('N/A') + ' → ' + updated_secondary_version | default('N/A') if upload_verification.before_state is defined }}"
   tags:
     - upload
