@@ -29,7 +29,7 @@
     
     # Stratégie de mise à jour
     partition_strategy: "auto"              # auto, primary, secondary
-    upload_method: "local"                  # local, remote
+    upload_method: "remote"                  # local, remote
     force_update: false                     # Forcer même si déjà installé
     
     # Options de sécurité

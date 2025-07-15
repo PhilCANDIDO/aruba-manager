@@ -46,6 +46,14 @@
       tags:
         - check
 
+    - name: (prerequisites) Verify local firmware file exists
+      ansible.builtin.debug:
+        var: firmware_file_stat
+      delegate_to: localhost
+      when: upload_method == "local"
+      tags:
+        - check
+
     - name: (prerequisites) Assert firmware file exists locally
       ansible.builtin.assert:
         that:
