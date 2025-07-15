@@ -113,7 +113,7 @@
       arubanetworks.aoscx.aoscx_upload_firmware:
         partition_name: "{{ chosen_partition }}"
         firmware_file_path: "{{ firmware_file_path }}"
-        wait_firmware_upload: true
+        wait_firmware_upload: false
       register: firmware_upload_result
       async: "{{ estimated_upload_time | int + 300 }}"  # Add 5 minutes buffer
       poll: 30
@@ -126,7 +126,7 @@
         partition_name: "{{ chosen_partition }}"
         remote_firmware_file_path: "{{ remote_firmware_url }}"
         vrf: "{{ management_vrf }}"
-        wait_firmware_upload: true
+        wait_firmware_upload: false
       register: firmware_upload_result
       async: "{{ estimated_upload_time | int + 300 }}"
       poll: 30
@@ -276,8 +276,8 @@
   block:
     - name: (upload) Wait for upload completion and system stabilization
       ansible.builtin.pause:
-        seconds: 45
-        prompt: "Attente stabilisation système après upload (45s)..."
+        seconds: 120
+        prompt: "Attente stabilisation système après upload (120s)..."
       tags:
         - upload
 
