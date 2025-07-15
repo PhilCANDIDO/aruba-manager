@@ -1,0 +1,53 @@
+---
+# test_show_running.yml
+# Playbook simple pour tester la commande show running-config
+
+- name: Test de la commande show running-config sur les switches Aruba
+  hosts: switches_aruba
+  gather_facts: false
+  vars:
+    ansible_connection: arubanetworks.aoscx.aoscx
+    ansible_network_os: arubanetworks.aoscx.aoscx
+    ansible_become: false
+    
+  tasks:
+    - name: Exécuter la commande show running-config
+      arubanetworks.aoscx.aoscx_command:
+        commands:
+          - "show running-config"
+      register: running_config_result
+      
+    - name: Afficher les informations de base
+      debug:
+        msg:
+          - "Switch: {{ inventory_hostname }}"
+          - "IP: {{ ansible_host }}"
+          - "Commande exécutée: show running-config"
+          - "Taille de la configuration: {{ running_config_result.stdout[0] | length }} caractères"
+          - "Nombre de lignes: {{ running_config_result.stdout[0].split('\n') | length }}"
+    
+    - name: Sauvegarder la configuration dans un fichier local
+      copy:
+        content: "{{ running_config_result.stdout[0] }}"
+        dest: "/tmp/running_config_{{ inventory_hostname }}_{{ '%Y%m%d_%H%M%S' | strftime }}.txt"
+      delegate_to: localhost
+      
+    - name: Afficher les premières lignes de la configuration
+      debug:
+        msg: "{{ running_config_result.stdout[0].split('\n')[:10] }}"
+      
+    - name: Rechercher des éléments spécifiques dans la configuration
+      debug:
+        msg:
+          - "Hostname trouvé: {{ 'hostname' in running_config_result.stdout[0] }}"
+          - "VLAN configurés: {{ running_config_result.stdout[0] | regex_findall('vlan \\d+') | unique | length }}"
+          - "Interfaces configurées: {{ running_config_result.stdout[0] | regex_findall('interface \\S+') | unique | length }}"
+      
+  post_tasks:
+    - name: Résumé de l'exécution
+      debug:
+        msg:
+          - "✅ Test terminé avec succès"
+          - "✅ Configuration récupérée pour {{ inventory_hostname }}"
+          - "✅ Fichier sauvegardé: /tmp/running_config_{{ inventory_hostname }}_{{ '%Y%m%d_%H%M%S' | strftime }}.txt"
+          - "ℹ️  Utilisez 'cat /tmp/running_config_*' pour voir le contenu complet"
