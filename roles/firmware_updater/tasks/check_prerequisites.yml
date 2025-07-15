@@ -35,8 +35,7 @@
   tags:
     - check
 
-
-- name: (prerequisites) Test connectivity to switch
+- name: (prerequisites) Test connectivity to switch "{{ inventory_hostname }}"
   block:
     - name: (prerequisites) Basic connectivity test
       arubanetworks.aoscx.aoscx_facts:
