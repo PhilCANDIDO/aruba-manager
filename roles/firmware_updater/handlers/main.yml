@@ -31,7 +31,7 @@
 
 - name: Log firmware update completion
   ansible.builtin.lineinfile:
-    path: "{{ ansible_user_dir | default('/tmp') }}/ansible_firmware_updates.log"
+    path: "/tmp/ansible_firmware_updates.log"
     line: "{{ '%Y-%m-%d %H:%M:%S' | strftime }} - {{ inventory_hostname }} - {{ update_status | upper }} - {{ target_firmware_version }} - {{ 'DRY-RUN' if dry_run | default(false) else 'REAL' }}"
     create: true
     mode: '0644'
@@ -41,7 +41,7 @@
 
 - name: Update inventory tracking
   ansible.builtin.lineinfile:
-    path: "{{ inventory_tracking_file | default(ansible_user_dir + '/firmware_inventory.txt') | default('/tmp/firmware_inventory.txt') }}"
+    path: "{{ inventory_tracking_file | default('/tmp/firmware_inventory.txt') }}"
     regexp: "^{{ inventory_hostname }},"
     line: "{{ inventory_hostname }},{{ final_version | default(current_version) | default('N/A') }},{{ '%Y-%m-%d %H:%M:%S' | strftime }},{{ update_status }},{{ 'DRY-RUN' if dry_run | default(false) else 'REAL' }}"
     create: true
