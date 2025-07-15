@@ -23,7 +23,7 @@
     dry_run: false                          # true = mode test, false = exécution réelle
     
     # Configuration du serveur de dépôt
-    repository_server: "backup.example.com"
+    #repository_server: "backup.example.com"
     repository_path: "/backups/network/aruba"
     repository_port: 22
     
