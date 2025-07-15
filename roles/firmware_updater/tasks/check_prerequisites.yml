@@ -199,6 +199,23 @@
       tags:
         - check
 
+    - name: (prerequisites) Ensure repository subdirectories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      delegate_to: "{{ repository_server }}"
+      become: true
+      loop:
+        - "{{ repository_path }}/firmware_updates"
+        - "{{ repository_path }}/backups"
+        - "{{ repository_path }}/logs"
+      when: 
+        - repository_server | length > 0
+        - backup_config | bool or generate_report | bool
+      tags:
+        - check
+
   rescue:
     - name: (prerequisites) Handle repository check failure
       ansible.builtin.debug:

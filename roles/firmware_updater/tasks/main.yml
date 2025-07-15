@@ -288,6 +288,19 @@
       tags:
         - always
 
+    - name: (main) Ensure firmware_updates directory exists on repository server
+      ansible.builtin.file:
+        path: "{{ repository_path }}/firmware_updates"
+        state: directory
+        mode: '0755'
+      delegate_to: "{{ repository_server }}"
+      when: 
+        - generate_report | bool
+        - repository_server | length > 0
+      become: true
+      tags:
+        - always
+
     - name: (main) Transfer report to repository
       ansible.builtin.copy:
         src: "{{ temp_report_file }}"
