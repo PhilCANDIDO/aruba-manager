@@ -92,7 +92,23 @@
     - name: (upload) Record upload completion time
       ansible.builtin.set_fact:
         upload_end_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
-        upload_duration: "{{ ((upload_end_time | to_datetime) - (upload_start_time | to_datetime)).total_seconds() | int }}"
+      tags:
+        - upload
+
+    - name: (upload) Calculate upload duration
+      ansible.builtin.set_fact:
+        upload_duration: "{{ ((upload_end_time | to_datetime('%Y-%m-%d %H:%M:%S')) - (upload_start_time | to_datetime('%Y-%m-%d %H:%M:%S'))).total_seconds() | int }}"
+      when:
+        - upload_start_time is defined
+        - upload_end_time is defined
+      tags:
+        - upload
+
+    - name: (upload) Set default duration if calculation fails
+      ansible.builtin.set_fact:
+        upload_duration: 0
+      when:
+        - upload_duration is not defined
       tags:
         - upload
 
@@ -111,6 +127,23 @@
         upload_end_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
         update_errors: "{{ update_errors + ['Firmware upload failed: ' + (ansible_failed_result.msg | default('Unknown upload error'))] }}"
         update_status: "upload_failed"
+      tags:
+        - upload
+
+    - name: (upload) Calculate upload duration on failure
+      ansible.builtin.set_fact:
+        upload_duration: "{{ ((upload_end_time | to_datetime('%Y-%m-%d %H:%M:%S')) - (upload_start_time | to_datetime('%Y-%m-%d %H:%M:%S'))).total_seconds() | int }}"
+      when:
+        - upload_start_time is defined
+        - upload_end_time is defined
+      tags:
+        - upload
+
+    - name: (upload) Set default duration on failure if calculation fails
+      ansible.builtin.set_fact:
+        upload_duration: 0
+      when:
+        - upload_duration is not defined
       tags:
         - upload
 
@@ -156,11 +189,21 @@
           ansible.builtin.set_fact:
             firmware_upload_result: "{{ retry_upload_result }}"
             upload_end_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
-            upload_duration: "{{ ((upload_end_time | to_datetime) - (upload_start_time | to_datetime)).total_seconds() | int }}"
             update_errors: "{{ update_errors[:-1] }}"  # Remove last error
           when: 
             - should_retry | bool
             - retry_upload_result is succeeded
+          tags:
+            - upload
+
+        - name: (upload) Recalculate duration after successful retry
+          ansible.builtin.set_fact:
+            upload_duration: "{{ ((upload_end_time | to_datetime('%Y-%m-%d %H:%M:%S')) - (upload_start_time | to_datetime('%Y-%m-%d %H:%M:%S'))).total_seconds() | int }}"
+          when: 
+            - should_retry | bool
+            - retry_upload_result is succeeded
+            - upload_start_time is defined
+            - upload_end_time is defined
           tags:
             - upload
 
