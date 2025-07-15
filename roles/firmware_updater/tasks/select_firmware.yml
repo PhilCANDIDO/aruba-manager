@@ -10,44 +10,87 @@
           - switch_series != 'unknown'
         fail_msg: "Model detection must be performed before firmware selection"
 
-    - name: Set model-specific firmware directory
+    - name: Simulate firmware selection for dry-run mode
       set_fact:
-        model_firmware_directory: "{{ repository_server }}{{ firmware_base_path }}/{{ switch_series }}/{{ switch_model_number }}"
+        firmware_file_path: "{{ firmware_base_path }}/{{ switch_series }}/{{ switch_model_number }}/ArubaOS-CX_{{ switch_model_number }}_{{ target_firmware_version.replace('LL.', '').replace('.', '_') }}.swi"
+      when: 
+        - dry_run | default(false) | bool
+        - auto_select_firmware | bool
+        - firmware_file_path == ""
+
+    - name: Set model-specific firmware directory path
+      set_fact:
+        model_firmware_directory: "{{ firmware_base_path }}/{{ switch_series }}/{{ switch_model_number }}"
       when: auto_select_firmware | bool
 
-    - name: List available firmware files for the model
+    - name: List available firmware files for the model (local method)
+      find:
+        paths: "{{ model_firmware_directory }}"
+        patterns: "ArubaOS-CX_*.swi"
+        file_type: file
+      register: firmware_listing
+      delegate_to: "{{ repository_server }}"
+      when: 
+        - auto_select_firmware | bool
+        - firmware_file_path == ""
+        - upload_method == "local"
+        - not (dry_run | default(false) | bool)
+
+    - name: Extract firmware filenames from find results
+      set_fact:
+        available_firmwares: "{{ firmware_listing.files | map(attribute='path') | map('basename') | list }}"
+      when: 
+        - auto_select_firmware | bool
+        - firmware_listing is defined
+        - firmware_listing.files is defined
+        - upload_method == "local"
+
+    - name: List available firmware files for the model (remote method)
       uri:
-        url: "{{ model_firmware_directory }}/"
+        url: "http://{{ repository_server }}{{ model_firmware_directory }}/"
         method: GET
         return_content: yes
-      register: firmware_listing
+      register: firmware_listing_remote
       delegate_to: localhost
       when: 
         - auto_select_firmware | bool
         - firmware_file_path == ""
+        - upload_method == "remote"
+        - not (dry_run | default(false) | bool)
 
-    - name: Parse available firmware files
+    - name: Parse available firmware files from remote listing
       set_fact:
-        available_firmwares: "{{ firmware_listing.content | regex_findall('ArubaOS-CX_[^\"]+\\.swi') | unique }}"
+        available_firmwares: "{{ firmware_listing_remote.content | regex_findall('ArubaOS-CX_[^\"]+\\.swi') | unique }}"
       when: 
         - auto_select_firmware | bool
-        - firmware_listing is defined
-        - firmware_listing.content is defined
+        - firmware_listing_remote is defined
+        - firmware_listing_remote.content is defined
+        - upload_method == "remote"
 
     - name: Filter firmware files by target version
       set_fact:
-        matching_firmware: "{{ available_firmwares | select('search', target_firmware_version) | list }}"
+        matching_firmware: "{{ available_firmwares | select('search', target_firmware_version.replace('LL.', '').replace('.', '_')) | list }}"
       when:
         - auto_select_firmware | bool
         - available_firmwares is defined
 
-    - name: Select the appropriate firmware file
+    - name: Select the appropriate firmware file (local method)
       set_fact:
         firmware_file_path: "{{ model_firmware_directory }}/{{ matching_firmware[0] }}"
       when:
         - auto_select_firmware | bool
         - matching_firmware is defined
         - matching_firmware | length > 0
+        - upload_method == "local"
+
+    - name: Select the appropriate firmware file (remote method)
+      set_fact:
+        firmware_file_path: "http://{{ repository_server }}{{ model_firmware_directory }}/{{ matching_firmware[0] }}"
+      when:
+        - auto_select_firmware | bool
+        - matching_firmware is defined
+        - matching_firmware | length > 0
+        - upload_method == "remote"
 
     - name: Validate firmware selection
       assert:

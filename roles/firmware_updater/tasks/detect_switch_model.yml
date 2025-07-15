@@ -1,16 +1,33 @@
 ---
+- name: Simulate switch facts for dry-run mode
+  set_fact:
+    ansible_net_platform_name: "ArubaOS-CX 6100"  # Default simulation for dry-run
+  when: 
+    - dry_run | default(false) | bool
+    - ansible_net_platform_name is not defined
+
 - name: Collect switch facts if not already done
   arubanetworks.aoscx.aoscx_facts:
     gather_subset:
       - platform
   delegate_to: "{{ inventory_hostname }}"
-  when: ansible_net_platform_name is not defined
+  when: 
+    - ansible_net_platform_name is not defined
+    - not (dry_run | default(false) | bool)
 
 - name: Extract model information from platform name
   set_fact:
     switch_platform_raw: "{{ ansible_net_platform_name | default('') }}"
     switch_model_number: "{{ ansible_net_platform_name | regex_search('(6[0-9]{3}|8[0-9]{3})') | default('') }}"
     switch_series: ""
+
+- name: Debug model detection
+  debug:
+    msg:
+      - "Raw platform: {{ switch_platform_raw }}"
+      - "Extracted model: {{ switch_model_number }}"
+      - "Regex result: {{ ansible_net_platform_name | regex_search('(6[0-9]{3}|8[0-9]{3})') }}"
+  when: verbose_output | default(false) | bool
 
 - name: Determine switch series
   set_fact:
