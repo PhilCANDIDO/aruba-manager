@@ -37,7 +37,7 @@
 
 - name: (prerequisites) Check firmware file availability
   block:
-    - name: (prerequisites) Verify local firmware file exists
+    - name: "(prerequisites) Verify local firmware {{ firmware_file_path }} file exists"
       ansible.builtin.stat:
         path: "{{ firmware_file_path }}"
       register: firmware_file_stat
