@@ -4,10 +4,11 @@
 - name: Send firmware update notification
   ansible.builtin.mail:
     to: "{{ notification_email | default('admin@example.com') }}"
-    subject: "Firmware Update {{ update_status | upper }} - {{ inventory_hostname }}"
+    subject: "{{ 'DRY-RUN: ' if dry_run | default(false) else '' }}Firmware Update {{ update_status | upper }} - {{ inventory_hostname }}"
     body: |
-      Mise à jour firmware terminée sur {{ inventory_hostname }}
+      {{ 'DRY-RUN: ' if dry_run | default(false) else '' }}Mise à jour firmware terminée sur {{ inventory_hostname }}
       
+      Mode: {{ 'DRY-RUN (Test uniquement)' if dry_run | default(false) else 'RÉEL' }}
       Statut: {{ update_status | upper }}
       Version cible: {{ target_firmware_version }}
       Version finale: {{ final_version | default('N/A') }}
@@ -25,25 +26,28 @@
     - send_notification | bool
     - notification_email is defined
   delegate_to: localhost
+  failed_when: false  # Don't fail if email can't be sent
   listen: "firmware update completed"
 
 - name: Log firmware update completion
   ansible.builtin.lineinfile:
-    path: "/var/log/ansible_firmware_updates.log"
-    line: "{{ '%Y-%m-%d %H:%M:%S' | strftime }} - {{ inventory_hostname }} - {{ update_status | upper }} - {{ target_firmware_version }}"
+    path: "{{ ansible_user_dir | default('/tmp') }}/ansible_firmware_updates.log"
+    line: "{{ '%Y-%m-%d %H:%M:%S' | strftime }} - {{ inventory_hostname }} - {{ update_status | upper }} - {{ target_firmware_version }} - {{ 'DRY-RUN' if dry_run | default(false) else 'REAL' }}"
     create: true
     mode: '0644'
   delegate_to: localhost
+  failed_when: false  # Don't fail if logging doesn't work
   listen: "firmware update completed"
 
 - name: Update inventory tracking
   ansible.builtin.lineinfile:
-    path: "{{ inventory_tracking_file | default('/tmp/firmware_inventory.txt') }}"
+    path: "{{ inventory_tracking_file | default(ansible_user_dir + '/firmware_inventory.txt') | default('/tmp/firmware_inventory.txt') }}"
     regexp: "^{{ inventory_hostname }},"
-    line: "{{ inventory_hostname }},{{ final_version | default(current_version) }},{{ '%Y-%m-%d %H:%M:%S' | strftime }},{{ update_status }}"
+    line: "{{ inventory_hostname }},{{ final_version | default(current_version) | default('N/A') }},{{ '%Y-%m-%d %H:%M:%S' | strftime }},{{ update_status }},{{ 'DRY-RUN' if dry_run | default(false) else 'REAL' }}"
     create: true
     mode: '0644'
   delegate_to: localhost
+  failed_when: false  # Don't fail if tracking doesn't work
   listen: "firmware update completed"
 
 - name: Cleanup failed update artifacts
