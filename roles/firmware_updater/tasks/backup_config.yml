@@ -107,6 +107,16 @@
       tags:
         - backup
 
+    - name: (backup) Debug variable running_config_output
+      ansible.builtin.debug:
+        vars: running_config_output
+      when: 
+        - backup_method == "show_running"
+        - verbose_output | default(true)
+        - running_config_output is defined
+      tags:
+        - backup
+
     - name: (backup) Debug running config output
       ansible.builtin.debug:
         msg:
