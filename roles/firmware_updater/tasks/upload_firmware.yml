@@ -121,6 +121,13 @@
       tags:
         - upload
 
+    - name: (upload) Debug firmware_upload_result (full)
+      ansible.builtin.debug:
+        var: firmware_upload_result
+      tags:
+        - upload
+        - debug
+
     - name: (upload) Upload firmware from remote URL
       arubanetworks.aoscx.aoscx_upload_firmware:
         partition_name: "{{ chosen_partition }}"
@@ -133,13 +140,6 @@
       when: upload_method == "remote"
       tags:
         - upload
-
-    - name: (upload) Debug firmware_upload_result (full)
-      ansible.builtin.debug:
-        var: firmware_upload_result
-      tags:
-        - upload
-        - debug
 
     - name: (upload) Debug firmware_upload_result
       ansible.builtin.debug:
