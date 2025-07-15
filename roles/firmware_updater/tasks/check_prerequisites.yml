@@ -59,7 +59,7 @@
 
     - name: (prerequisites) Verify REST API using direct HTTP check
       ansible.builtin.uri:
-        url: "https://{{ inventory_hostname }}:443/rest/v1/system"
+        url: "https://{{ ansible_host | default(inventory_hostname) }}:443/rest/v1/system"
         method: GET
         user: "{{ ansible_user | default(ansible_ssh_user) }}"
         password: "{{ ansible_password | default(ansible_ssh_pass) }}"
@@ -92,7 +92,7 @@
           - "⚠️  ATTENTION: Impossible de vérifier l'accessibilité REST API"
           - "⚠️  Erreur: {{ rest_api_check.msg | default('Connection failed') }}"
           - "⚠️  Assurez-vous que l'API REST est configurée et accessible"
-          - "⚠️  Pour tester: curl -k https://{{ inventory_hostname }}:443/rest/v1/system"
+          - "⚠️  Pour tester: curl -k https://{{ ansible_host | default(inventory_hostname) }}:443/rest/v1/system"
       when: 
         - not (dry_run | default(false) | bool)
         - rest_api_check.status is not defined or rest_api_check.status not in [200, 401, 403]
