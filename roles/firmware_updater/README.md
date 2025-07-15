@@ -88,7 +88,7 @@ Ce rôle permet de mettre à jour le firmware des commutateurs Aruba AOS-CX de m
 | ------------------- | ----------------------------------- | ------------------- |
 | `repository_path`   | Chemin sur le serveur de dépôt      | `/backups/firmware` |
 | `repository_port`   | Port du serveur de dépôt            | `22`                |
-| `backup_method`     | Méthode de sauvegarde (local, tftp) | `local`             |
+| `backup_method`     | Méthode de sauvegarde (local, show_running) | `show_running`      |
 | `keep_backup_count` | Nombre de sauvegardes à conserver   | `2`                 |
 
 ## Utilisation
@@ -317,6 +317,28 @@ vars:
 - **Modèle détecté** : 6100 (série 6000)
 - **Chemin généré** : `/firmware/6000/6100/`
 - **Firmware sélectionné** : `ArubaOS-CX_6100-6000_10_13_1110.swi`
+
+## Méthodes de sauvegarde
+
+### Méthode `show_running` (par défaut)
+- **Commande** : `show running-config`
+- **Avantages** : Simple, rapide, ne dépend pas de services externes
+- **Processus** : Récupère la configuration via l'API REST et la sauvegarde dans un fichier
+- **Recommandée** : Pour la plupart des cas d'usage
+
+### Méthode `local`
+- **Utilise** : Module `aoscx_config` avec option `backup: true`
+- **Avantages** : Utilise les mécanismes natifs d'Ansible
+- **Processus** : Sauvegarde automatique via les modules Ansible AOS-CX
+
+### Configuration d'exemple
+```yaml
+vars:
+  backup_config: true
+  backup_method: "show_running"  # ou "local"
+  repository_server: "backup.example.com"
+  repository_path: "/backups/network/aruba"
+```
 
 ## Timeouts adaptatifs par modèle
 

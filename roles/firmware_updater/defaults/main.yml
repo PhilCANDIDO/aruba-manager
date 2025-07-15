@@ -22,7 +22,7 @@ post_reboot_wait: 180                   # 3 minutes d'attente après reboot
 
 # Paramètres de sauvegarde
 backup_config: true                     # Sauvegarder la configuration avant MAJ
-backup_method: "local"                  # local, tftp, repository
+backup_method: "show_running"           # local, show_running, repository
 repository_server: ""                   # Serveur de dépôt pour sauvegardes
 repository_path: "/backups/firmware"    # Chemin sur le serveur de dépôt
 repository_port: 22                     # Port du serveur de dépôt

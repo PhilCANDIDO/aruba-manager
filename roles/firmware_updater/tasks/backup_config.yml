@@ -66,32 +66,67 @@
       tags:
         - backup
 
-- name: (backup) Create backup via TFTP method
+- name: (backup) Create backup via show running-config method
   block:
-    - name: (backup) Backup running config to TFTP server
-      arubanetworks.aoscx.aoscx_backup_config:
-        config_name: 'running-config'
-        remote_output_file_tftp_path: "tftp://{{ repository_server }}/{{ backup_filename }}"
-        config_type: 'cli'
-        vrf: "{{ management_vrf }}"
-      register: tftp_backup_result
-      when: backup_method == "tftp"
+    - name: (backup) Get running configuration from switch
+      arubanetworks.aoscx.aoscx_command:
+        commands:
+          - "show running-config"
+      register: running_config_output
+      when: backup_method == "show_running"
       tags:
         - backup
 
-    - name: (backup) Verify TFTP backup completion
-      ansible.builtin.debug:
-        msg: "✓ Sauvegarde TFTP terminée vers {{ repository_server }}"
+    - name: (backup) Save running config to temporary file
+      ansible.builtin.copy:
+        content: "{{ running_config_output.stdout[0] }}"
+        dest: "{{ temp_backup_file }}"
+        mode: '0644'
+      delegate_to: localhost
       when: 
-        - backup_method == "tftp"
-        - tftp_backup_result is succeeded
+        - backup_method == "show_running"
+        - running_config_output.stdout is defined
+        - running_config_output.stdout | length > 0
+      tags:
+        - backup
+
+    - name: (backup) Verify running config backup file exists
+      ansible.builtin.stat:
+        path: "{{ temp_backup_file }}"
+      register: backup_file_stat
+      delegate_to: localhost
+      when: backup_method == "show_running"
+      tags:
+        - backup
+
+    - name: (backup) Assert running config backup was created
+      ansible.builtin.assert:
+        that:
+          - backup_file_stat.stat.exists
+          - backup_file_stat.stat.size > 0
+        fail_msg: "Fichier de sauvegarde running-config non créé ou vide"
+        success_msg: "✓ Sauvegarde running-config créée: {{ backup_file_stat.stat.size }} bytes"
+      when: backup_method == "show_running"
+      tags:
+        - backup
+
+    - name: (backup) Display running config backup summary
+      ansible.builtin.debug:
+        msg:
+          - "✓ Sauvegarde running-config terminée"
+          - "Lignes de configuration: {{ running_config_output.stdout[0].split('\n') | length }}"
+          - "Taille du fichier: {{ backup_file_stat.stat.size }} bytes"
+      when: 
+        - backup_method == "show_running"
+        - running_config_output.stdout is defined
+        - backup_file_stat.stat.exists
       tags:
         - backup
 
   rescue:
-    - name: (backup) Handle TFTP backup failure
+    - name: (backup) Handle running config backup failure
       ansible.builtin.set_fact:
-        update_errors: "{{ update_errors + ['TFTP backup failed: ' + (ansible_failed_result.msg | default('TFTP error'))] }}"
+        update_errors: "{{ update_errors + ['Running config backup failed: ' + (ansible_failed_result.msg | default('Show running-config error'))] }}"
       tags:
         - backup
 
@@ -99,7 +134,7 @@
       ansible.builtin.include_tasks: backup_config.yml
       vars:
         backup_method: "local"
-      when: backup_method == "tftp"
+      when: backup_method == "show_running"
       tags:
         - backup
 
@@ -116,7 +151,7 @@
       register: repository_transfer
       when: 
         - repository_server | length > 0
-        - backup_method == "local"
+        - backup_method in ["local", "show_running"]
       tags:
         - backup
 
@@ -127,7 +162,7 @@
       delegate_to: "{{ repository_server }}"
       when: 
         - repository_server | length > 0
-        - backup_method == "local"
+        - backup_method in ["local", "show_running"]
       tags:
         - backup
 
