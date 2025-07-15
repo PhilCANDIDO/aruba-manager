@@ -1,0 +1,44 @@
+---
+# Test playbook pour dry-run de la mise à jour firmware
+- name: Test dry-run de la mise à jour firmware
+  hosts: switches_aruba
+  gather_facts: false
+  vars:
+    ansible_connection: arubanetworks.aoscx.aoscx
+    ansible_network_os: arubanetworks.aoscx.aoscx
+    ansible_become: false
+    
+    # Configuration du firmware (sélection automatique)
+    target_firmware_version: "LL.10.10.1040"
+    auto_select_firmware: true
+    firmware_base_path: "/firmware"
+    
+    # Configuration du serveur de dépôt
+    repository_server: "backup.example.com"
+    repository_path: "/backups/network/aruba"
+    
+    # MODE DRY-RUN ACTIVÉ
+    dry_run: true
+    
+    # Options de configuration
+    partition_strategy: "auto"
+    backup_config: true
+    verify_post_update: true
+    rollback_on_failure: true
+    
+    # Options de rapport
+    generate_report: true
+    verbose_output: true
+    
+  roles:
+    - firmware_updater
+    
+  post_tasks:
+    - name: Résumé du test dry-run
+      debug:
+        msg:
+          - "✅ Test dry-run terminé avec succès"
+          - "✅ Détection de modèle: {{ switch_model_number | default('N/A') }}"
+          - "✅ Firmware sélectionné: {{ firmware_file_path | default('N/A') }}"
+          - "✅ Aucune modification réelle effectuée"
+          - "ℹ️  Pour exécuter réellement: dry_run: false"

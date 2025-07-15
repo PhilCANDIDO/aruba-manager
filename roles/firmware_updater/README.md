@@ -35,53 +35,69 @@ Ce rôle permet de mettre à jour le firmware des commutateurs Aruba AOS-CX de m
 - **Vérifications multiples** : à chaque étape critique
 - **Gestion d'erreurs** : récupération intelligente
 
+### Sélection automatique du firmware par modèle
+- **Détection automatique** : identification du modèle de switch (6000/8000 series)
+- **Organisation par modèle** : structure de répertoires `/firmware/6000/6200/` ou `/firmware/8000/8320/`
+- **Sélection intelligente** : choix automatique du firmware approprié selon le modèle détecté
+- **Mode manuel disponible** : possibilité de spécifier manuellement le chemin du firmware
+
+### Mode Dry-Run (Test)
+- **Validation sans risque** : teste la logique sans modifier le switch
+- **Détection complète** : exécute la détection de modèle et sélection de firmware
+- **Vérifications préalables** : valide la connectivité, espace disque, permissions
+- **Simulation des étapes** : affiche ce qui serait fait sans l'exécuter réellement
+- **Rapport détaillé** : montre le firmware qui serait sélectionné et les actions planifiées
+
 ## Variables
 
 ### Variables obligatoires
 
-| Variable | Description |
-|----------|-------------|
-| `firmware_file_path` | Chemin vers le fichier firmware (.swi) |
-| `target_firmware_version` | Version cible du firmware |
-| `repository_server` | Serveur de dépôt pour sauvegardes et rapports |
+| Variable                  | Description                                                         |
+| ------------------------- | ------------------------------------------------------------------- |
+| `target_firmware_version` | Version cible du firmware                                           |
+| `repository_server`       | Serveur de dépôt pour sauvegardes et rapports                      |
+| `firmware_file_path`      | Chemin vers le fichier firmware (optionnel si auto_select_firmware) |
 
 ### Variables de configuration principales
 
-| Variable | Description | Valeur par défaut |
-|----------|-------------|-------------------|
-| `partition_strategy` | Stratégie de partition (auto, primary, secondary) | `auto` |
-| `upload_method` | Méthode d'upload (local, remote) | `local` |
-| `backup_config` | Sauvegarder la configuration | `true` |
-| `verify_post_update` | Vérifier après la mise à jour | `true` |
-| `rollback_on_failure` | Rollback automatique si échec | `true` |
-| `force_update` | Forcer même si version déjà installée | `false` |
+| Variable              | Description                                       | Valeur par défaut |
+| --------------------- | ------------------------------------------------- | ----------------- |
+| `auto_select_firmware`| Sélection automatique du firmware par modèle      | `true`            |
+| `firmware_base_path`  | Chemin de base des firmwares sur le repository    | `/firmware`       |
+| `dry_run`             | Mode test - pas de modifications réelles         | `false`           |
+| `partition_strategy`  | Stratégie de partition (auto, primary, secondary) | `auto`            |
+| `upload_method`       | Méthode d'upload (local, remote)                  | `local`           |
+| `backup_config`       | Sauvegarder la configuration                      | `true`            |
+| `verify_post_update`  | Vérifier après la mise à jour                     | `true`            |
+| `rollback_on_failure` | Rollback automatique si échec                     | `true`            |
+| `force_update`        | Forcer même si version déjà installée             | `false`           |
 
 ### Variables de timing et retry
 
-| Variable | Description | Valeur par défaut |
-|----------|-------------|-------------------|
-| `max_upload_time` | Timeout upload (secondes) | `1800` |
-| `max_reboot_time` | Timeout reboot (secondes) | `600` |
-| `post_reboot_wait` | Attente post-reboot (secondes) | `180` |
-| `max_retries` | Nombre max de tentatives | `3` |
-| `retry_delay` | Délai entre tentatives (secondes) | `30` |
+| Variable           | Description                       | Valeur par défaut |
+| ------------------ | --------------------------------- | ----------------- |
+| `max_upload_time`  | Timeout upload (secondes)         | `1800`            |
+| `max_reboot_time`  | Timeout reboot (secondes)         | `600`             |
+| `post_reboot_wait` | Attente post-reboot (secondes)    | `180`             |
+| `max_retries`      | Nombre max de tentatives          | `3`               |
+| `retry_delay`      | Délai entre tentatives (secondes) | `30`              |
 
 ### Variables de dépôt et sauvegarde
 
-| Variable | Description | Valeur par défaut |
-|----------|-------------|-------------------|
-| `repository_path` | Chemin sur le serveur de dépôt | `/backups/firmware` |
-| `repository_port` | Port du serveur de dépôt | `22` |
-| `backup_method` | Méthode de sauvegarde (local, tftp) | `local` |
-| `keep_backup_count` | Nombre de sauvegardes à conserver | `2` |
+| Variable            | Description                         | Valeur par défaut   |
+| ------------------- | ----------------------------------- | ------------------- |
+| `repository_path`   | Chemin sur le serveur de dépôt      | `/backups/firmware` |
+| `repository_port`   | Port du serveur de dépôt            | `22`                |
+| `backup_method`     | Méthode de sauvegarde (local, tftp) | `local`             |
+| `keep_backup_count` | Nombre de sauvegardes à conserver   | `2`                 |
 
 ## Utilisation
 
-### Exemple de playbook
+### Exemple de playbook avec sélection automatique
 
 ```yaml
 ---
-- name: Update Aruba switches firmware
+- name: Update Aruba switches firmware (auto-select)
   hosts: switches_aruba
   gather_facts: false
   vars:
@@ -90,8 +106,9 @@ Ce rôle permet de mettre à jour le firmware des commutateurs Aruba AOS-CX de m
     ansible_become: false
     
     # Configuration de la mise à jour firmware
-    firmware_file_path: "/opt/firmware/ArubaOS-CX_6200_10_10_1040.swi"
     target_firmware_version: "LL.10.10.1040"
+    auto_select_firmware: true
+    firmware_base_path: "/firmware"
     
     # Configuration du serveur de dépôt
     repository_server: "backup.example.com"
@@ -106,10 +123,74 @@ Ce rôle permet de mettre à jour le firmware des commutateurs Aruba AOS-CX de m
     - firmware_updater
 ```
 
+### Exemple de playbook avec chemin manuel
+
+```yaml
+---
+- name: Update Aruba switches firmware (manual path)
+  hosts: switches_aruba
+  gather_facts: false
+  vars:
+    ansible_connection: arubanetworks.aoscx.aoscx
+    ansible_network_os: arubanetworks.aoscx.aoscx
+    ansible_become: false
+    
+    # Configuration de la mise à jour firmware
+    firmware_file_path: "backup.example.com/firmware/6000/6200/ArubaOS-CX_6200_10_10_1040.swi"
+    target_firmware_version: "LL.10.10.1040"
+    auto_select_firmware: false
+    
+    # Configuration du serveur de dépôt
+    repository_server: "backup.example.com"
+    repository_path: "/backups/network/aruba"
+    
+  roles:
+    - firmware_updater
+```
+
+### Exemple de playbook avec mode dry-run
+
+```yaml
+---
+- name: Test firmware update (dry-run)
+  hosts: switches_aruba
+  gather_facts: false
+  vars:
+    ansible_connection: arubanetworks.aoscx.aoscx
+    ansible_network_os: arubanetworks.aoscx.aoscx
+    ansible_become: false
+    
+    # Configuration du firmware
+    target_firmware_version: "LL.10.10.1040"
+    auto_select_firmware: true
+    firmware_base_path: "/firmware"
+    
+    # MODE DRY-RUN ACTIVÉ
+    dry_run: true
+    
+    # Configuration du serveur de dépôt
+    repository_server: "backup.example.com"
+    repository_path: "/backups/network/aruba"
+    
+    # Options de test
+    backup_config: true
+    verify_post_update: true
+    verbose_output: true
+    
+  roles:
+    - firmware_updater
+```
+
 ### Exécution
 
 ```bash
-# Mise à jour complète
+# Test dry-run (recommandé en premier)
+ansible-playbook -i inventory/switches.yml update_firmware.yml --ask-pass --extra-vars "dry_run=true"
+
+# Ou utiliser le playbook de test dédié
+ansible-playbook -i inventory/switches.yml test_firmware_dry_run.yml --ask-pass
+
+# Mise à jour complète (après validation dry-run)
 ansible-playbook -i inventory/switches.yml update_firmware.yml --ask-pass
 
 # Vérification uniquement (sans mise à jour)
@@ -124,16 +205,16 @@ ansible-playbook -i inventory/switches.yml update_firmware.yml --vault-password-
 
 ## Étiquettes (Tags)
 
-| Tag | Description |
-|-----|-------------|
-| `check` | Vérifications préalables et collecte d'état |
-| `backup` | Sauvegarde de la configuration |
-| `upload` | Upload du firmware |
-| `reboot` | Redémarrage du switch |
-| `verify` | Vérifications post-update |
-| `cleanup` | Nettoyage des fichiers temporaires |
-| `always` | Toutes les étapes (par défaut) |
-| `never` | Étapes de debug uniquement |
+| Tag       | Description                                 |
+| --------- | ------------------------------------------- |
+| `check`   | Vérifications préalables et collecte d'état |
+| `backup`  | Sauvegarde de la configuration              |
+| `upload`  | Upload du firmware                          |
+| `reboot`  | Redémarrage du switch                       |
+| `verify`  | Vérifications post-update                   |
+| `cleanup` | Nettoyage des fichiers temporaires          |
+| `always`  | Toutes les étapes (par défaut)              |
+| `never`   | Étapes de debug uniquement                  |
 
 ## Stratégies de partition
 
@@ -159,12 +240,44 @@ ansible-playbook -i inventory/switches.yml update_firmware.yml --vault-password-
 - **Conditions** : échec de vérification avec partition de rollback disponible
 - **Processus** : redémarrage sur l'ancienne partition + vérification
 
+## Structure du repository de firmware
+
+### Organisation par modèle
+
+Le rôle attend une structure de répertoires organisée par séries et modèles :
+
+```
+/firmware/
+├── 6000/              # Firmware pour série 6000
+│   ├── 6100/          # Firmware spécifique au modèle 6100
+│   │   ├── ArubaOS-CX_6100_10_10_1040.swi
+│   │   └── ArubaOS-CX_6100_10_13_1010.swi
+│   ├── 6200/          # Firmware spécifique au modèle 6200
+│   │   ├── ArubaOS-CX_6200_10_10_1040.swi
+│   │   └── ArubaOS-CX_6200_10_13_1010.swi
+│   ├── 6300/
+│   └── 6400/
+└── 8000/              # Firmware pour série 8000
+    ├── 8320/          # Firmware spécifique au modèle 8320
+    │   ├── ArubaOS-CX_8320_10_10_1040.swi
+    │   └── ArubaOS-CX_8320_10_13_1010.swi
+    ├── 8325/
+    └── 8400/
+```
+
+### Sélection automatique
+
+Lorsque `auto_select_firmware: true`, le rôle :
+1. Détecte automatiquement le modèle du switch
+2. Recherche dans le répertoire `/firmware/{série}/{modèle}/`
+3. Sélectionne le firmware correspondant à `target_firmware_version`
+
 ## Timeouts adaptatifs par modèle
 
 Le rôle ajuste automatiquement les timeouts selon le modèle de switch :
 
 | Modèle | Upload (min) | Reboot (min) |
-|--------|--------------|--------------|
+| ------ | ------------ | ------------ |
 | 6100   | 40           | 8            |
 | 6200   | 30           | 10           |
 | 6300   | 35           | 12           |

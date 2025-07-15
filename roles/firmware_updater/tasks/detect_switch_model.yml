@@ -1,0 +1,40 @@
+---
+- name: Collect switch facts if not already done
+  arubanetworks.aoscx.aoscx_facts:
+    gather_subset:
+      - platform
+  delegate_to: "{{ inventory_hostname }}"
+  when: ansible_net_platform_name is not defined
+
+- name: Extract model information from platform name
+  set_fact:
+    switch_platform_raw: "{{ ansible_net_platform_name | default('') }}"
+    switch_model_number: "{{ ansible_net_platform_name | regex_search('(6[0-9]{3}|8[0-9]{3})') | default('') }}"
+    switch_series: ""
+
+- name: Determine switch series
+  set_fact:
+    switch_series: "{{ '6000' if switch_model_number.startswith('6') else '8000' if switch_model_number.startswith('8') else 'unknown' }}"
+  when: switch_model_number != ''
+
+- name: Validate model detection
+  assert:
+    that:
+      - switch_model_number != ''
+      - switch_series != 'unknown'
+    fail_msg: "Unable to detect switch model. Platform: {{ switch_platform_raw }}"
+    success_msg: "Detected switch model: {{ switch_model_number }} ({{ switch_series }} series)"
+
+- name: Set model-specific firmware path
+  set_fact:
+    model_firmware_path: "{{ firmware_base_path }}/{{ switch_series }}/{{ switch_model_number }}"
+  when: firmware_base_path is defined
+
+- name: Display detected model information
+  debug:
+    msg:
+      - "Switch platform: {{ switch_platform_raw }}"
+      - "Detected model: {{ switch_model_number }}"
+      - "Switch series: {{ switch_series }}"
+      - "Model firmware path: {{ model_firmware_path | default('Not configured') }}"
+  when: verbose_output | default(false) | bool

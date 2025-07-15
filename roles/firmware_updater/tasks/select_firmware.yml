@@ -1,0 +1,76 @@
+---
+- name: Select firmware based on switch model
+  block:
+    - name: Check if model detection was successful
+      assert:
+        that:
+          - switch_model_number is defined
+          - switch_model_number != ''
+          - switch_series is defined
+          - switch_series != 'unknown'
+        fail_msg: "Model detection must be performed before firmware selection"
+
+    - name: Set model-specific firmware directory
+      set_fact:
+        model_firmware_directory: "{{ repository_server }}{{ firmware_base_path }}/{{ switch_series }}/{{ switch_model_number }}"
+      when: auto_select_firmware | bool
+
+    - name: List available firmware files for the model
+      uri:
+        url: "{{ model_firmware_directory }}/"
+        method: GET
+        return_content: yes
+      register: firmware_listing
+      delegate_to: localhost
+      when: 
+        - auto_select_firmware | bool
+        - firmware_file_path == ""
+
+    - name: Parse available firmware files
+      set_fact:
+        available_firmwares: "{{ firmware_listing.content | regex_findall('ArubaOS-CX_[^\"]+\\.swi') | unique }}"
+      when: 
+        - auto_select_firmware | bool
+        - firmware_listing is defined
+        - firmware_listing.content is defined
+
+    - name: Filter firmware files by target version
+      set_fact:
+        matching_firmware: "{{ available_firmwares | select('search', target_firmware_version) | list }}"
+      when:
+        - auto_select_firmware | bool
+        - available_firmwares is defined
+
+    - name: Select the appropriate firmware file
+      set_fact:
+        firmware_file_path: "{{ model_firmware_directory }}/{{ matching_firmware[0] }}"
+      when:
+        - auto_select_firmware | bool
+        - matching_firmware is defined
+        - matching_firmware | length > 0
+
+    - name: Validate firmware selection
+      assert:
+        that:
+          - firmware_file_path != ""
+        fail_msg: "No matching firmware found for model {{ switch_model_number }} with version {{ target_firmware_version }}"
+        success_msg: "Selected firmware: {{ firmware_file_path }}"
+
+  rescue:
+    - name: Handle firmware selection failure
+      debug:
+        msg:
+          - "Failed to automatically select firmware"
+          - "Model: {{ switch_model_number | default('Unknown') }}"
+          - "Target version: {{ target_firmware_version }}"
+          - "Please specify firmware_file_path manually"
+      failed_when: true
+
+- name: Display selected firmware information
+  debug:
+    msg:
+      - "Switch Model: {{ switch_model_number }}"
+      - "Switch Series: {{ switch_series }}"
+      - "Firmware Path: {{ firmware_file_path }}"
+      - "Target Version: {{ target_firmware_version }}"
+  when: verbose_output | default(false) | bool

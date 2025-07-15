@@ -6,11 +6,10 @@
     - name: (main) Validate required parameters
       ansible.builtin.assert:
         that:
-          - firmware_file_path is defined
-          - firmware_file_path | length > 0
           - target_firmware_version is defined
           - target_firmware_version | length > 0
-        fail_msg: "Les paramètres firmware_file_path et target_firmware_version sont obligatoires"
+          - (firmware_file_path is defined and firmware_file_path | length > 0) or auto_select_firmware | bool
+        fail_msg: "Le paramètre target_firmware_version est obligatoire. firmware_file_path est requis si auto_select_firmware est désactivé"
         success_msg: "Paramètres requis validés"
       run_once: true
       delegate_to: localhost
@@ -20,9 +19,20 @@
     - name: (main) Initialize update tracking variables
       ansible.builtin.set_fact:
         update_start_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
-        update_status: "started"
+        update_status: "{{ 'dry_run_started' if dry_run else 'started' }}"
         update_errors: []
         rollback_performed: false
+      tags:
+        - always
+
+    - name: (main) Display dry-run mode warning
+      ansible.builtin.debug:
+        msg:
+          - "⚠️  MODE DRY-RUN ACTIVÉ ⚠️"
+          - "Aucune modification réelle ne sera effectuée"
+          - "Les vérifications et la détection seront exécutées normalement"
+          - "Switch: {{ inventory_hostname }}"
+      when: dry_run | bool
       tags:
         - always
 
@@ -73,6 +83,21 @@
     - check
     - always
 
+# Étape 2.5: Détection du modèle de switch
+- name: (main) Detect switch model
+  import_tasks: detect_switch_model.yml
+  tags:
+    - check
+    - always
+
+# Étape 2.6: Sélection automatique du firmware
+- name: (main) Select firmware based on model
+  import_tasks: select_firmware.yml
+  when: auto_select_firmware | bool
+  tags:
+    - check
+    - always
+
 # Étape 3: Détermination de la stratégie
 - name: (main) Determine update strategy
   import_tasks: determine_strategy.yml
@@ -83,7 +108,19 @@
 # Étape 4: Sauvegarde de la configuration (si activée)
 - name: (main) Backup current configuration
   import_tasks: backup_config.yml
-  when: backup_config | bool
+  when: 
+    - backup_config | bool
+    - not (dry_run | bool)
+  tags:
+    - backup
+    - always
+
+- name: (main) Simulate backup configuration (dry-run)
+  debug:
+    msg: "🔍 [DRY-RUN] Sauvegarderait la configuration actuelle"
+  when: 
+    - backup_config | bool
+    - dry_run | bool
   tags:
     - backup
     - always
@@ -91,6 +128,18 @@
 # Étape 5: Upload du firmware
 - name: (main) Upload firmware
   import_tasks: upload_firmware.yml
+  when: not (dry_run | bool)
+  tags:
+    - upload
+    - always
+
+- name: (main) Simulate firmware upload (dry-run)
+  debug:
+    msg: 
+      - "🔍 [DRY-RUN] Uploaderait le firmware: {{ firmware_file_path }}"
+      - "🔍 [DRY-RUN] Vers la partition: {{ chosen_partition | default('auto') }}"
+      - "🔍 [DRY-RUN] Stratégie: {{ partition_strategy }}"
+  when: dry_run | bool
   tags:
     - upload
     - always
@@ -98,6 +147,17 @@
 # Étape 6: Redémarrage du switch
 - name: (main) Reboot switch with new firmware
   import_tasks: reboot_switch.yml
+  when: not (dry_run | bool)
+  tags:
+    - reboot
+    - always
+
+- name: (main) Simulate switch reboot (dry-run)
+  debug:
+    msg: 
+      - "🔍 [DRY-RUN] Redémarrerait le switch avec le nouveau firmware"
+      - "🔍 [DRY-RUN] Timeout estimé: {{ current_reboot_timeout | default(max_reboot_time) }}s"
+  when: dry_run | bool
   tags:
     - reboot
     - always
@@ -105,7 +165,22 @@
 # Étape 7: Vérification post-update
 - name: (main) Verify firmware update
   import_tasks: verify_update.yml
-  when: verify_post_update | bool
+  when: 
+    - verify_post_update | bool
+    - not (dry_run | bool)
+  tags:
+    - verify
+    - always
+
+- name: (main) Simulate post-update verification (dry-run)
+  debug:
+    msg: 
+      - "🔍 [DRY-RUN] Vérifierait la version firmware: {{ target_firmware_version }}"
+      - "🔍 [DRY-RUN] Testerait la connectivité et les fonctionnalités"
+      - "🔍 [DRY-RUN] Validerait la stabilité du système"
+  when: 
+    - verify_post_update | bool
+    - dry_run | bool
   tags:
     - verify
     - always
@@ -123,7 +198,7 @@
     - name: (main) Set completion time
       ansible.builtin.set_fact:
         update_end_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
-        update_status: "{{ 'completed' if update_status != 'failed' else 'failed' }}"
+        update_status: "{{ 'dry_run_completed' if dry_run else ('completed' if update_status != 'failed' else 'failed') }}"
       tags:
         - always
 
@@ -152,13 +227,15 @@
     - name: (main) Display update summary
       ansible.builtin.debug:
         msg:
-          - "=== RÉSUMÉ DE LA MISE À JOUR FIRMWARE ==="
+          - "=== RÉSUMÉ {{ 'DRY-RUN' if dry_run else 'DE LA MISE À JOUR' }} FIRMWARE ==="
           - "Switch: {{ inventory_hostname }}"
+          - "Modèle détecté: {{ switch_model_number | default('N/A') }} ({{ switch_series | default('N/A') }} series)"
           - "Statut: {{ update_status | upper }}"
           - "Version cible: {{ target_firmware_version }}"
+          - "Firmware sélectionné: {{ firmware_file_path | default('N/A') }}"
           - "Partition utilisée: {{ chosen_partition | default('N/A') }}"
           - "Durée totale: {{ update_duration | default('N/A') }}"
-          - "Rollback effectué: {{ rollback_performed | ternary('OUI', 'NON') }}"
+          - "{{ 'Mode: DRY-RUN - Aucune modification effectuée' if dry_run else 'Rollback effectué: ' + (rollback_performed | ternary('OUI', 'NON')) }}"
           - "Erreurs: {{ update_errors | length }}"
       tags:
         - always

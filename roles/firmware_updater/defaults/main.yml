@@ -5,11 +5,14 @@
 firmware_file_path: ""                    # Chemin vers le fichier firmware (obligatoire)
 target_firmware_version: ""              # Version cible (obligatoire)
 remote_firmware_url: ""                  # URL HTTP pour download distant (optionnel)
+firmware_base_path: "/firmware"          # Chemin de base pour les firmwares sur le repository
+auto_select_firmware: true               # Sélection automatique du firmware basée sur le modèle
 
 # Stratégie de mise à jour
 partition_strategy: "auto"               # auto, primary, secondary
 upload_method: "local"                   # local, remote
 force_update: false                      # Forcer la mise à jour même si déjà installée
+dry_run: false                           # Mode test - pas de modifications réelles
 
 # Paramètres de timeout (en secondes)
 max_upload_time: 1800                   # 30 minutes pour l'upload

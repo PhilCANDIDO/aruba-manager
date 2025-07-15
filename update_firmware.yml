@@ -10,9 +10,17 @@
     ansible_network_os: arubanetworks.aoscx.aoscx
     ansible_become: false
     
-    # Configuration du firmware
-    firmware_file_path: "/opt/firmware/ArubaOS-CX_6200_10_10_1040.swi"
+    # Configuration du firmware (sélection automatique)
     target_firmware_version: "LL.10.10.1040"
+    auto_select_firmware: true              # Sélection automatique par modèle
+    firmware_base_path: "/firmware"         # Chemin de base sur le repository
+    
+    # Configuration alternative (sélection manuelle)
+    # firmware_file_path: "/opt/firmware/ArubaOS-CX_6200_10_10_1040.swi"
+    # auto_select_firmware: false
+    
+    # Mode test (pour valider sans exécuter)
+    dry_run: false                          # true = mode test, false = exécution réelle
     
     # Configuration du serveur de dépôt
     repository_server: "backup.example.com"
