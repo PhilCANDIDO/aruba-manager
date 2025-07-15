@@ -250,19 +250,34 @@ Le rôle attend une structure de répertoires organisée par séries et modèles
 /firmware/
 ├── 6000/              # Firmware pour série 6000
 │   ├── 6100/          # Firmware spécifique au modèle 6100
+│   │   ├── ArubaOS-CX_6100-6000_10_13_1110.swi
 │   │   ├── ArubaOS-CX_6100_10_10_1040.swi
-│   │   └── ArubaOS-CX_6100_10_13_1010.swi
+│   │   └── ArubaOS-CX_6100_10_12_1020.swi
 │   ├── 6200/          # Firmware spécifique au modèle 6200
+│   │   ├── ArubaOS-CX_6200_10_13_1110.swi
 │   │   ├── ArubaOS-CX_6200_10_10_1040.swi
-│   │   └── ArubaOS-CX_6200_10_13_1010.swi
-│   ├── 6300/
-│   └── 6400/
+│   │   └── ArubaOS-CX_6200_10_12_1020.swi
+│   ├── 6300/          # Firmware spécifique au modèle 6300
+│   │   ├── ArubaOS-CX_6300_10_13_1110.swi
+│   │   ├── ArubaOS-CX_6300_10_10_1040.swi
+│   │   └── ArubaOS-CX_6300_10_12_1020.swi
+│   └── 6400/          # Firmware spécifique au modèle 6400
+│       ├── ArubaOS-CX_6400_10_13_1110.swi
+│       ├── ArubaOS-CX_6400_10_10_1040.swi
+│       └── ArubaOS-CX_6400_10_12_1020.swi
 └── 8000/              # Firmware pour série 8000
     ├── 8320/          # Firmware spécifique au modèle 8320
+    │   ├── ArubaOS-CX_8320_10_13_1110.swi
     │   ├── ArubaOS-CX_8320_10_10_1040.swi
-    │   └── ArubaOS-CX_8320_10_13_1010.swi
-    ├── 8325/
-    └── 8400/
+    │   └── ArubaOS-CX_8320_10_12_1020.swi
+    ├── 8325/          # Firmware spécifique au modèle 8325
+    │   ├── ArubaOS-CX_8325_10_13_1110.swi
+    │   ├── ArubaOS-CX_8325_10_10_1040.swi
+    │   └── ArubaOS-CX_8325_10_12_1020.swi
+    └── 8400/          # Firmware spécifique au modèle 8400
+        ├── ArubaOS-CX_8400_10_13_1110.swi
+        ├── ArubaOS-CX_8400_10_10_1040.swi
+        └── ArubaOS-CX_8400_10_12_1020.swi
 ```
 
 ### Sélection automatique
@@ -271,6 +286,37 @@ Lorsque `auto_select_firmware: true`, le rôle :
 1. Détecte automatiquement le modèle du switch
 2. Recherche dans le répertoire `/firmware/{série}/{modèle}/`
 3. Sélectionne le firmware correspondant à `target_firmware_version`
+
+### Exemple d'upload de firmware
+
+**Pour un firmware `ArubaOS-CX_6100-6000_10_13_1110.swi` :**
+
+```bash
+# Créer la structure de répertoires sur le serveur
+sudo mkdir -p /firmware/6000/6100
+sudo chmod 755 /firmware/6000/6100
+
+# Uploader le firmware (via SCP)
+scp ArubaOS-CX_6100-6000_10_13_1110.swi user@backup.example.com:/firmware/6000/6100/
+
+# Vérifier l'upload
+ssh user@backup.example.com "ls -la /firmware/6000/6100/"
+```
+
+**Configuration du playbook correspondante :**
+
+```yaml
+vars:
+  target_firmware_version: "LL.10.13.1110"  # Version extraite du filename
+  auto_select_firmware: true
+  firmware_base_path: "/firmware"
+  repository_server: "backup.example.com"
+```
+
+**Résultat de la sélection automatique :**
+- **Modèle détecté** : 6100 (série 6000)
+- **Chemin généré** : `/firmware/6000/6100/`
+- **Firmware sélectionné** : `ArubaOS-CX_6100-6000_10_13_1110.swi`
 
 ## Timeouts adaptatifs par modèle
 
