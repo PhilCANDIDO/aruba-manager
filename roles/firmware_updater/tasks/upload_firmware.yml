@@ -116,7 +116,7 @@
       ansible.builtin.debug:
         msg:
           - "✓ Upload firmware terminé avec succès"
-          - "Durée: {{ upload_duration }}s ({{ (upload_duration / 60) | round(1) }}min)"
+          - "Durée: {{ upload_duration | default(0) | int }}s ({{ (upload_duration | default(0) | int / 60) | round(1) }}min)"
           - "Partition: {{ chosen_partition }}"
       tags:
         - upload
@@ -153,7 +153,7 @@
           - "✗ ÉCHEC de l'upload firmware"
           - "Partition cible: {{ chosen_partition }}"
           - "Erreur: {{ ansible_failed_result.msg | default('Erreur inconnue') }}"
-          - "Durée avant échec: {{ upload_duration | default('N/A') }}s"
+          - "Durée avant échec: {{ upload_duration | default(0) | int }}s"
       tags:
         - upload
 
@@ -301,7 +301,7 @@
       - "=== RÉSUMÉ DE L'UPLOAD ==="
       - "Statut: {{ '✓ SUCCÈS' if firmware_upload_result is succeeded else '✗ ÉCHEC' }}"
       - "Partition: {{ chosen_partition }}"
-      - "Durée: {{ upload_duration | default('N/A') }}s"
+      - "Durée: {{ upload_duration | default(0) | int }}s"
       - "Vérification: {{ '✓' if upload_verification.verified | default(false) else '✗' }}"
       - "Version Primary: {{ updated_primary_version | default('N/A') }}"
       - "Version Secondary: {{ updated_secondary_version | default('N/A') }}"
