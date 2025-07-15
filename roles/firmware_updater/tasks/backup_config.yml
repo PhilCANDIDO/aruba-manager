@@ -82,6 +82,7 @@
     - name: (backup) Debug running config output
       ansible.builtin.debug:
         msg:
+          - "Variable running_config_output: {{ running_config_output }}"
           - "Command executed: {{ running_config_output.failed | default(false) | ternary('Failed', 'Success') }}"
           - "Has stdout: {{ running_config_output.stdout is defined }}"
           - "Stdout length: {{ running_config_output.stdout | length | default(0) }}"

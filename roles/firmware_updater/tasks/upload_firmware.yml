@@ -83,6 +83,12 @@
       tags:
         - upload
 
+    - name: (upload) debug firmware_upload_result
+      ansible.builtin.debug:
+        msg: "Résultat de l'upload: {{ firmware_upload_result }}"
+      tags:
+        - upload
+        
     - name: (upload) Record upload completion time
       ansible.builtin.set_fact:
         upload_end_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
