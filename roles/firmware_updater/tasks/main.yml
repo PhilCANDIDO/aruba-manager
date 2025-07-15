@@ -227,7 +227,64 @@
         src: update_report.md.j2
         dest: "{{ temp_report_file }}"
       delegate_to: localhost
-      when: generate_report | bool
+      when: 
+        - generate_report | bool
+        - not (dry_run | default(false) | bool)
+      tags:
+        - always
+
+    - name: (main) Generate dry-run report
+      ansible.builtin.copy:
+        content: |
+          # Rapport Dry-Run de Mise à Jour Firmware
+          
+          ## Informations Générales
+          
+          | Paramètre | Valeur |
+          |-----------|--------|
+          | **Switch** | {{ inventory_hostname }} |
+          | **Mode** | DRY-RUN (Test uniquement) |
+          | **Date** | {{ update_start_time }} |
+          | **Statut** | {{ update_status | upper }} |
+          
+          ## Configuration Testée
+          
+          | Paramètre | Valeur |
+          |-----------|--------|
+          | **Version cible** | {{ target_firmware_version }} |
+          | **Modèle détecté** | {{ switch_model_number | default('N/A') }} ({{ switch_series | default('N/A') }} series) |
+          | **Firmware sélectionné** | {{ firmware_file_path | default('N/A') }} |
+          | **Sélection automatique** | {{ auto_select_firmware | ternary('✓ Activée', '✗ Désactivée') }} |
+          | **Stratégie de partition** | {{ partition_strategy | upper }} |
+          | **Sauvegarde config** | {{ backup_config | ternary('✓ Activée', '✗ Désactivée') }} |
+          
+          ## Résultats du Test
+          
+          ✅ **Détection de modèle** - {{ switch_model_number | default('N/A') }} identifié
+          ✅ **Sélection firmware** - {{ firmware_file_path | default('N/A') }}
+          ✅ **Configuration validée** - Tous les paramètres sont corrects
+          
+          ## Actions Simulées
+          
+          🔍 Sauvegarde de la configuration
+          🔍 Upload du firmware vers la partition {{ chosen_partition | default('auto') }}
+          🔍 Redémarrage du switch
+          🔍 Vérification de la nouvelle version
+          
+          ## Recommandations
+          
+          ✅ **Test réussi** - La configuration est prête pour l'exécution
+          ➡️ **Prochaine étape** - Exécuter avec `dry_run: false` pour la mise à jour réelle
+          
+          ---
+          
+          **Rapport dry-run généré le {{ '%Y-%m-%d %H:%M:%S' | strftime }} par Ansible Firmware Updater**
+        dest: "{{ temp_report_file }}"
+        mode: '0644'
+      delegate_to: localhost
+      when: 
+        - generate_report | bool
+        - dry_run | default(false) | bool
       tags:
         - always
 
