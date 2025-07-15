@@ -4,7 +4,7 @@
 - name: (backup) Initialize backup process
   ansible.builtin.set_fact:
     backup_start_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
-    backup_filename: "config_backup_{{ inventory_hostname }}_{{ '%Y%m%d_%H%M%S' | strftime }}.cfg"
+    backup_filename: "{{ temp_backup_file | basename }}"
   tags:
     - backup
 
@@ -12,9 +12,10 @@
   ansible.builtin.debug:
     msg:
       - "=== SAUVEGARDE DE LA CONFIGURATION ==="
-      - "Switch: {{ current_hostname }}"
+      - "Switch: {{ current_hostname | default(inventory_hostname) }}"
       - "Méthode: {{ backup_method | upper }}"
-      - "Fichier: {{ backup_filename }}"
+      - "Fichier complet: {{ temp_backup_file }}"
+      - "Nom du fichier: {{ backup_filename }}"
       - "Serveur de dépôt: {{ repository_server if repository_server | length > 0 else 'Local uniquement' }}"
   tags:
     - backup
