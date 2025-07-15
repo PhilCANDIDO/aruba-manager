@@ -57,6 +57,10 @@ __pycache__/
 *.swo
 *~
 
+# IA custom files
+CLAUDE.md
+.CLAUDE
+
 # Fichiers système
 .DS_Store
 Thumbs.db
