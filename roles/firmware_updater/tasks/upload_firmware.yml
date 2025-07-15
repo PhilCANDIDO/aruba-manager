@@ -113,10 +113,10 @@
       arubanetworks.aoscx.aoscx_upload_firmware:
         partition_name: "{{ chosen_partition }}"
         firmware_file_path: "{{ firmware_file_path }}"
-        wait_firmware_upload: false
+        wait_firmware_upload: true
       register: firmware_upload_result
-      async: "{{ estimated_upload_time | int + 300 }}"  # Add 5 minutes buffer
-      poll: 30
+      # async: "{{ estimated_upload_time | int + 300 }}"  # Add 5 minutes buffer
+      # poll: 30
       when: upload_method == "local"
       tags:
         - upload
