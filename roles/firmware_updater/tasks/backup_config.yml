@@ -140,9 +140,31 @@
 
 - name: (backup) Transfer backup to repository server
   block:
-    - name: (backup) Copy backup file to repository server
-      ansible.builtin.copy:
+    - name: (backup) Ensure config_backups directory exists on repository server
+      ansible.builtin.file:
+        path: "{{ repository_path }}/config_backups"
+        state: directory
+        mode: '0755'
+      delegate_to: "{{ repository_server }}"
+      become: true
+      when: repository_server | length > 0
+      tags:
+        - backup
+
+    - name: (backup) Read backup file content
+      ansible.builtin.slurp:
         src: "{{ temp_backup_file }}"
+      register: backup_content
+      delegate_to: localhost
+      when: 
+        - repository_server | length > 0
+        - backup_method in ["local", "show_running"]
+      tags:
+        - backup
+
+    - name: (backup) Write backup file to repository server
+      ansible.builtin.copy:
+        content: "{{ backup_content.content | b64decode }}"
         dest: "{{ repository_path }}/config_backups/{{ backup_filename }}"
         mode: '0644'
         backup: true
@@ -152,6 +174,7 @@
       when: 
         - repository_server | length > 0
         - backup_method in ["local", "show_running"]
+        - backup_content is defined
       tags:
         - backup
 
@@ -207,14 +230,25 @@
       tags:
         - backup
 
+    - name: (backup) Read metadata file content
+      ansible.builtin.slurp:
+        src: "{{ temp_update_path }}/backup_metadata_{{ inventory_hostname }}.json"
+      register: metadata_content
+      delegate_to: localhost
+      when: repository_server | length > 0
+      tags:
+        - backup
+
     - name: (backup) Transfer metadata to repository
       ansible.builtin.copy:
-        src: "{{ temp_update_path }}/backup_metadata_{{ inventory_hostname }}.json"
+        content: "{{ metadata_content.content | b64decode }}"
         dest: "{{ repository_path }}/config_backups/{{ backup_filename }}.metadata.json"
         mode: '0644'
       delegate_to: "{{ repository_server }}"
       become: true
-      when: repository_server | length > 0
+      when: 
+        - repository_server | length > 0
+        - metadata_content is defined
       tags:
         - backup
 
