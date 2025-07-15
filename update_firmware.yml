@@ -11,7 +11,7 @@
     ansible_become: false
     
     # Configuration du firmware (sélection automatique)
-    target_firmware_version: "LL.10.10.1040"
+    target_firmware_version: "LL.10.13.1110"
     auto_select_firmware: true              # Sélection automatique par modèle
     firmware_base_path: "/firmware"         # Chemin de base sur le repository
     

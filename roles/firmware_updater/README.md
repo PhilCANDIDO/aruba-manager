@@ -111,7 +111,7 @@ Ce rôle permet de mettre à jour le firmware des commutateurs Aruba AOS-CX de m
     firmware_base_path: "/firmware"
     
     # Configuration du serveur de dépôt
-    repository_server: "backup.example.com"
+    # repository_server: "backup.example.com"
     repository_path: "/backups/network/aruba"
     
     # Options de mise à jour
