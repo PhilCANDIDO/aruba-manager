@@ -93,6 +93,41 @@
       tags:
         - backup
 
+    - name: (backup) Validate running config output is defined
+      ansible.builtin.fail:
+        msg:
+          - "❌ ERREUR CRITIQUE: Variable running_config_output non définie"
+          - "❌ Raison: La commande 'show running-config' n'a pas été exécutée"
+          - "❌ Méthode de sauvegarde: {{ backup_method }}"
+          - "❌ Mode dry-run: {{ dry_run | default(false) }}"
+          - "❌ Action: Vérifiez la méthode de sauvegarde et les conditions"
+      when: 
+        - backup_method == "show_running"
+        - not (dry_run | default(false) | bool)
+        - running_config_output is not defined
+      tags:
+        - backup
+
+    - name: (backup) Validate running config output content
+      ansible.builtin.fail:
+        msg:
+          - "❌ ERREUR CRITIQUE: Impossible de récupérer la configuration du switch"
+          - "❌ Raison: {{ 'Commande échouée' if running_config_output.failed | default(false) else 'Sortie vide ou non définie' }}"
+          - "❌ Statut: {{ running_config_output.failed | default('N/A') }}"
+          - "❌ Stdout défini: {{ running_config_output.stdout is defined }}"
+          - "❌ Stdout longueur: {{ running_config_output.stdout | length | default(0) }}"
+          - "❌ Action: Vérifiez la connectivité et les permissions sur le switch"
+      when: 
+        - backup_method == "show_running"
+        - not (dry_run | default(false) | bool)
+        - running_config_output is defined
+        - (running_config_output.failed | default(false)) or 
+          (running_config_output.stdout is not defined) or 
+          (running_config_output.stdout | length == 0) or
+          (running_config_output.stdout[0] | length == 0)
+      tags:
+        - backup
+
     - name: (backup) Save running config to temporary file
       ansible.builtin.copy:
         content: "{{ running_config_output.stdout[0] }}"
