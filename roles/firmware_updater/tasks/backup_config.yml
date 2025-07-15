@@ -74,6 +74,20 @@
           - "show running-config"
       register: running_config_output
       when: backup_method == "show_running"
+      failed_when: false
+      tags:
+        - backup
+
+    - name: (backup) Debug running config output
+      ansible.builtin.debug:
+        msg:
+          - "Command executed: {{ running_config_output.failed | default(false) | ternary('Failed', 'Success') }}"
+          - "Has stdout: {{ running_config_output.stdout is defined }}"
+          - "Stdout length: {{ running_config_output.stdout | length | default(0) }}"
+          - "First 100 chars: {{ running_config_output.stdout[0][:100] | default('No output') }}"
+      when: 
+        - backup_method == "show_running"
+        - verbose_output | default(true)
       tags:
         - backup
 
@@ -85,6 +99,8 @@
       delegate_to: localhost
       when: 
         - backup_method == "show_running"
+        - running_config_output is defined
+        - not (running_config_output.failed | default(false))
         - running_config_output.stdout is defined
         - running_config_output.stdout | length > 0
       tags:
@@ -95,6 +111,16 @@
         path: "{{ temp_backup_file }}"
       register: backup_file_stat
       delegate_to: localhost
+      when: backup_method == "show_running"
+      tags:
+        - backup
+
+    - name: (backup) Debug backup file info
+      ansible.builtin.debug:
+        msg:
+          - "Backup file path: {{ temp_backup_file }}"
+          - "File exists: {{ backup_file_stat.stat.exists | default(false) }}"
+          - "Running config output length: {{ running_config_output.stdout[0] | length | default(0) }}"
       when: backup_method == "show_running"
       tags:
         - backup
@@ -151,6 +177,27 @@
       tags:
         - backup
 
+    - name: (backup) Check if backup file exists before transfer
+      ansible.builtin.stat:
+        path: "{{ temp_backup_file }}"
+      register: backup_file_check
+      delegate_to: localhost
+      when: repository_server | length > 0
+      tags:
+        - backup
+
+    - name: (backup) Warn if backup file doesn't exist
+      ansible.builtin.debug:
+        msg:
+          - "⚠️  ATTENTION: Le fichier de sauvegarde n'existe pas"
+          - "⚠️  Chemin: {{ temp_backup_file }}"
+          - "⚠️  Vérifiez que la sauvegarde a été créée correctement"
+      when: 
+        - repository_server | length > 0
+        - not (backup_file_check.stat.exists | default(false))
+      tags:
+        - backup
+
     - name: (backup) Read backup file content
       ansible.builtin.slurp:
         src: "{{ temp_backup_file }}"
@@ -159,6 +206,7 @@
       when: 
         - repository_server | length > 0
         - backup_method in ["local", "show_running"]
+        - backup_file_check.stat.exists | default(false)
       tags:
         - backup
 
@@ -304,13 +352,29 @@
         - backup
 
 - name: (backup) Record backup completion
-  ansible.builtin.set_fact:
-    backup_end_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
-    backup_duration: "{{ ((backup_end_time | to_datetime) - (backup_start_time | to_datetime)).total_seconds() | int }}"
-    backup_completed: true
-    backup_info: "{{ backup_metadata | default({}) }}"
-  tags:
-    - backup
+  block:
+    - name: (backup) Set backup end time
+      ansible.builtin.set_fact:
+        backup_end_time: "{{ '%Y-%m-%d %H:%M:%S' | strftime }}"
+        backup_completed: true
+        backup_info: "{{ backup_metadata | default({}) }}"
+      tags:
+        - backup
+
+    - name: (backup) Calculate backup duration
+      ansible.builtin.set_fact:
+        backup_duration: "{{ (backup_end_time | to_datetime('%Y-%m-%d %H:%M:%S') - backup_start_time | to_datetime('%Y-%m-%d %H:%M:%S')).total_seconds() | int }}"
+      when:
+        - backup_start_time is defined
+        - backup_end_time is defined
+      tags:
+        - backup
+  rescue:
+    - name: (backup) Set default duration on calculation error
+      ansible.builtin.set_fact:
+        backup_duration: 0
+      tags:
+        - backup
 
 - name: (backup) Display backup summary
   ansible.builtin.debug:
