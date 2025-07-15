@@ -131,6 +131,8 @@
           - "show system"
           - "show interface mgmt"
       register: functionality_test
+      vars:
+        ansible_connection: network_cli
       tags:
         - verify
 
@@ -174,6 +176,8 @@
           - "show uptime"
           - "show system resource-utilization"
       register: system_status
+      vars:
+        ansible_connection: network_cli
       tags:
         - verify
 

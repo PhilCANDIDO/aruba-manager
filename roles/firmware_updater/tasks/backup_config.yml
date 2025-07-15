@@ -101,6 +101,8 @@
         commands:
           - "show running-config"
       register: running_config_output
+      vars:
+        ansible_connection: network_cli
       when: 
         - backup_method == "show_running"
         - not (dry_run | default(false) | bool)

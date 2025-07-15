@@ -120,6 +120,8 @@
           - "show system resource-utilization"
           - "show image"
       register: resource_check
+      vars:
+        ansible_connection: network_cli
       tags:
         - check
 

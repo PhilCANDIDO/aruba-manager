@@ -57,6 +57,8 @@
               - "show image"
               - "show hostname"
           register: cli_firmware_info
+          vars:
+            ansible_connection: network_cli
           tags:
             - check
 
@@ -110,6 +112,8 @@
           - "show system"
           - "show uptime"
       register: system_info
+      vars:
+        ansible_connection: network_cli
       tags:
         - check
 
