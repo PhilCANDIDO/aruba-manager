@@ -69,17 +69,6 @@
 
 - name: (backup) Create backup via show running-config method
   block:
-    - name: (backup) Get running configuration from switch
-      arubanetworks.aoscx.aoscx_command:
-        commands:
-          - "show running-config"
-      register: running_config_output
-      when: 
-        - backup_method == "show_running"
-        - not (dry_run | default(false) | bool)
-      failed_when: false
-      tags:
-        - backup
 
     - name: (backup) Simulate running config for dry-run
       ansible.builtin.set_fact:
@@ -107,9 +96,21 @@
       tags:
         - backup
 
+    - name: (backup) Get running configuration from switch
+      arubanetworks.aoscx.aoscx_command:
+        commands:
+          - "show running-config"
+      register: running_config_output
+      when: 
+        - backup_method == "show_running"
+        - not (dry_run | default(false) | bool)
+      failed_when: false
+      tags:
+        - backup
+
     - name: (backup) Debug variable running_config_output
       ansible.builtin.debug:
-        vars: running_config_output
+        var: running_config_output
       when: 
         - backup_method == "show_running"
         - verbose_output | default(true)
