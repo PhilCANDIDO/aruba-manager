@@ -134,6 +134,13 @@
       tags:
         - upload
 
+    - name: (upload) Debug firmware_upload_result (full)
+      ansible.builtin.debug:
+        var: firmware_upload_result
+      tags:
+        - upload
+        - debug
+
     - name: (upload) Debug firmware_upload_result
       ansible.builtin.debug:
         msg:
@@ -276,8 +283,8 @@
   block:
     - name: (upload) Wait for upload completion and system stabilization
       ansible.builtin.pause:
-        seconds: 120
-        prompt: "Attente stabilisation système après upload (120s)..."
+        seconds: 30
+        prompt: "Attente stabilisation système après upload (30s)..."
       tags:
         - upload
 
