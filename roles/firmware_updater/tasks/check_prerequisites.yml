@@ -35,59 +35,6 @@
   tags:
     - check
 
-- name: (prerequisites) Check firmware file availability
-  block:
-    - name: "(prerequisites) Verify local firmware {{ firmware_file_path }} file exists"
-      ansible.builtin.stat:
-        path: "{{ firmware_file_path }}"
-      register: firmware_file_stat
-      delegate_to: localhost
-      when: upload_method == "local"
-      tags:
-        - check
-
-    - name: (prerequisites) Verify local firmware file exists
-      ansible.builtin.debug:
-        var: firmware_file_stat
-      delegate_to: localhost
-      when: upload_method == "local"
-      tags:
-        - check
-
-    - name: (prerequisites) Assert firmware file exists locally
-      ansible.builtin.assert:
-        that:
-          - firmware_file_stat.stat.exists
-          - firmware_file_stat.stat.size > 0
-        fail_msg: "Le fichier firmware {{ firmware_file_path }} n'existe pas ou est vide"
-        success_msg: "Fichier firmware trouvé: {{ firmware_file_path }} ({{ firmware_file_stat.stat.size }} bytes)"
-      when: upload_method == "local"
-      tags:
-        - check
-
-    - name: (prerequisites) Verify remote firmware URL accessibility
-      ansible.builtin.uri:
-        url: "{{ remote_firmware_url }}"
-        method: HEAD
-        status_code: 200
-      register: remote_firmware_check
-      delegate_to: localhost
-      when: upload_method == "remote"
-      tags:
-        - check
-
-  rescue:
-    - name: (prerequisites) Handle firmware file check failure
-      ansible.builtin.set_fact:
-        update_errors: "{{ update_errors + ['Firmware file not accessible: ' + (ansible_failed_result.msg | default('Unknown error'))] }}"
-      tags:
-        - check
-
-    - name: (prerequisites) Fail on firmware file issue
-      ansible.builtin.fail:
-        msg: "Impossible d'accéder au fichier firmware. Vérifiez le chemin ou l'URL."
-      tags:
-        - check
 
 - name: (prerequisites) Test connectivity to switch
   block:
@@ -233,10 +180,10 @@
       - "Switch: {{ inventory_hostname }}"
       - "Connectivité: ✓"
       - "API REST: ✓"
-      - "Fichier firmware: ✓"
       - "Espace disque: {{ current_free_space | default('Non vérifié') }}MB"
       - "Collections Ansible: ✓"
       - "Modules Python: ✓"
       - "Serveur de dépôt: {{ '✓' if repository_server | length > 0 else 'Non configuré' }}"
+      - "Note: Validation du firmware après sélection automatique"
   tags:
     - check

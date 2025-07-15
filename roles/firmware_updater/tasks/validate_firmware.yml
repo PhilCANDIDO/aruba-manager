@@ -1,0 +1,88 @@
+---
+# Validation du firmware après sélection automatique ou manuelle
+
+- name: (validate) Validate firmware file availability
+  block:
+    - name: (validate) Verify firmware file path is defined
+      ansible.builtin.assert:
+        that:
+          - firmware_file_path is defined
+          - firmware_file_path | length > 0
+        fail_msg: "Aucun fichier firmware n'a été sélectionné. Vérifiez auto_select_firmware ou firmware_file_path."
+        success_msg: "Chemin du firmware validé: {{ firmware_file_path }}"
+      tags:
+        - validate
+        - always
+
+    - name: (validate) Check local firmware file exists
+      ansible.builtin.stat:
+        path: "{{ firmware_file_path }}"
+      register: firmware_file_stat
+      delegate_to: localhost
+      when: upload_method == "local"
+      tags:
+        - validate
+        - always
+
+    - name: (validate) Verify local firmware file exists and is valid
+      ansible.builtin.assert:
+        that:
+          - firmware_file_stat.stat.exists
+          - firmware_file_stat.stat.size > 0
+        fail_msg: "Le fichier firmware {{ firmware_file_path }} n'existe pas ou est vide"
+        success_msg: "Fichier firmware trouvé: {{ firmware_file_path }} ({{ firmware_file_stat.stat.size }} bytes)"
+      when: upload_method == "local"
+      tags:
+        - validate
+        - always
+
+    - name: (validate) Verify firmware filename format
+      ansible.builtin.assert:
+        that:
+          - firmware_file_path | basename | regex_search('^ArubaOS-CX_.+\.swi$')
+        fail_msg: "Le nom du fichier firmware ne respecte pas le format ArubaOS-CX_*.swi"
+        success_msg: "Format du nom de fichier validé"
+      tags:
+        - validate
+        - always
+
+    - name: (validate) Verify remote firmware URL accessibility
+      ansible.builtin.uri:
+        url: "{{ remote_firmware_url }}"
+        method: HEAD
+        status_code: 200
+      register: remote_firmware_check
+      delegate_to: localhost
+      when: upload_method == "remote"
+      tags:
+        - validate
+        - always
+
+    - name: (validate) Display firmware validation summary
+      ansible.builtin.debug:
+        msg:
+          - "=== VALIDATION DU FIRMWARE ==="
+          - "Fichier firmware: {{ firmware_file_path }}"
+          - "Méthode d'upload: {{ upload_method }}"
+          - "Taille du fichier: {{ firmware_file_stat.stat.size | default('N/A') }} bytes"
+          - "Version cible: {{ target_firmware_version }}"
+          - "Modèle détecté: {{ switch_model_number | default('N/A') }}"
+          - "Sélection automatique: {{ auto_select_firmware | ternary('OUI', 'NON') }}"
+      tags:
+        - validate
+        - always
+
+  rescue:
+    - name: (validate) Handle firmware validation failure
+      ansible.builtin.set_fact:
+        update_errors: "{{ update_errors + ['Firmware validation failed: ' + (ansible_failed_result.msg | default('Unknown error'))] }}"
+      tags:
+        - validate
+        - always
+
+    - name: (validate) Fail on firmware validation issue
+      ansible.builtin.fail:
+        msg: "Échec de la validation du firmware. {{ ansible_failed_result.msg | default('Vérifiez le chemin du fichier et la configuration.') }}"
+      tags:
+        - validate
+        - always

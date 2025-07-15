@@ -98,6 +98,26 @@
     - check
     - always
 
+# Étape 2.7: Validation du firmware sélectionné
+- name: (main) Validate firmware file
+  import_tasks: validate_firmware.yml
+  when: not (dry_run | bool)
+  tags:
+    - validate
+    - always
+
+- name: (main) Simulate firmware validation (dry-run)
+  debug:
+    msg:
+      - "🔍 [DRY-RUN] Validerait le firmware: {{ firmware_file_path | default('N/A') }}"
+      - "🔍 [DRY-RUN] Vérifierait l'existence et la taille du fichier"
+      - "🔍 [DRY-RUN] Contrôlerait le format du nom de fichier"
+      - "🔍 [DRY-RUN] Sélection automatique: {{ auto_select_firmware | ternary('OUI', 'NON') }}"
+  when: dry_run | bool
+  tags:
+    - validate
+    - always
+
 # Étape 3: Détermination de la stratégie
 - name: (main) Determine update strategy
   import_tasks: determine_strategy.yml
