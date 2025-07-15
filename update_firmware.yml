@@ -4,6 +4,8 @@
 
 - name: Mise à jour firmware des switches Aruba AOS-CX
   hosts: switches_aruba
+  collections:
+    - arubanetworks.aoscx
   gather_facts: false
   vars:
     #ansible_connection: httpapi   # use this option in inventory file
