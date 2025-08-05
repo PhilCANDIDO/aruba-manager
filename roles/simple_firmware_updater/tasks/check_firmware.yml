@@ -5,6 +5,10 @@
   ansible.builtin.set_fact:
     firmware_url: "http://{{ repository_server }}{{ repository_path }}/{{ firmware_filename }}"
 
+- name: "debug url"
+  ansible.builtin.debug:
+    msg: "URL du firmware: {{ firmware_url }}"
+
 - name: "Vérifier l'existence du firmware sur le serveur repository"
   ansible.builtin.uri:
     url: "{{ firmware_url }}"
