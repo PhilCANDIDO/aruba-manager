@@ -25,7 +25,7 @@
   tags:
     - backup
 
-- name: "(backup_config) Sauvegarder la configuration avec aoscx_backup_config"
+- name: "(backup_config) Sauvegarder la configuration avec aoscx_backup_config (cli mode)"
   arubanetworks.aoscx.aoscx_backup_config:
     config_name: "running-config"
     output_file: "{{ backup_filename }}"
