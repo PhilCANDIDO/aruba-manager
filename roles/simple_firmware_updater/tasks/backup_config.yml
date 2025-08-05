@@ -25,12 +25,40 @@
   tags:
     - backup
 
-- name: "(backup_config) Sauvegarder la configuration avec aoscx_backup_config (cli mode)"
+- name: "(backup_config) Sauvegarder la configuration avec aoscx_backup_config"
   arubanetworks.aoscx.aoscx_backup_config:
     config_name: "running-config"
     output_file: "{{ backup_filename }}"
-    config_type: cli
+    config_type: "cli"
+    config_json: false
   register: backup_result
+  ignore_errors: true
+  tags:
+    - backup
+
+- name: "(backup_config) Alternative - Récupérer la configuration via l'API REST"
+  ansible.builtin.uri:
+    url: "https://{{ ansible_host }}/rest/v10.08/fullconfigs/running-config"
+    method: GET
+    headers:
+      Accept: "text/plain"
+    user: "{{ aruba_user }}"
+    password: "{{ aruba_password }}"
+    force_basic_auth: true
+    validate_certs: false
+  register: config_api_result
+  when: backup_result is failed
+  delegate_to: localhost
+  tags:
+    - backup
+
+- name: "(backup_config) Sauvegarder la configuration depuis l'API"
+  ansible.builtin.copy:
+    content: "{{ config_api_result.content }}"
+    dest: "{{ backup_filename }}"
+    mode: '0644'
+  when: config_api_result is defined and config_api_result is succeeded
+  delegate_to: localhost
   tags:
     - backup
 
@@ -54,6 +82,7 @@
   delegate_to: localhost
   tags:
     - backup
+
 
 - name: "(backup_config) Afficher la taille du fichier de sauvegarde"
   ansible.builtin.debug:
