@@ -18,56 +18,14 @@
   ansible.builtin.debug:
     var: boot_result
 
-- name: "(reboot_switch) Message d'information sur le redémarrage"
-  ansible.builtin.debug:
-    msg: "Le switch devrait redémarrer automatiquement suite au changement de partition de boot"
-
-- name: "(reboot_switch) Forcer le redémarrage via l'API REST si nécessaire"
-  ansible.builtin.uri:
-    url: "https://{{ ansible_host }}/rest/v10.08/system/reboot"
-    method: POST
-    body_format: json
-    body: {}
-    user: "{{ aruba_user }}"
-    password: "{{ aruba_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    status_code: [200, 202]
-  delegate_to: localhost
-  when: boot_result.changed is defined and not boot_result.changed
-  ignore_errors: true
-
-- name: "(reboot_switch) Attendre que le switch soit inaccessible"
+- name: "(reboot_switch) Attendre que le switch redémarre"
   ansible.builtin.wait_for:
     host: "{{ ansible_host }}"
-    port: 443
-    state: stopped
-    delay: 10
-    timeout: 120
-  delegate_to: localhost
-
-- name: "(reboot_switch) Attendre que le switch redémarre complètement"
-  ansible.builtin.wait_for:
-    host: "{{ ansible_host }}"
-    port: 443
+    port: 22
     state: started
     delay: 60
     timeout: "{{ reboot_timeout }}"
   delegate_to: localhost
-
-- name: "(reboot_switch) Pause supplémentaire pour stabilisation"
-  ansible.builtin.wait_for:
-    timeout: 60
-  delegate_to: localhost
-  
-- name: "(reboot_switch) Vérifier la connectivité API"
-  arubanetworks.aoscx.aoscx_facts:
-    gather_subset:
-      - platform_name
-  register: connectivity_test
-  retries: 5
-  delay: 10
-  until: connectivity_test is succeeded
 
 - name: "(reboot_switch) Calculer la durée du redémarrage"
   ansible.builtin.set_fact:
