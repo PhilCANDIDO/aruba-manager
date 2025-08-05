@@ -34,8 +34,10 @@ Le rôle `simple_firmware_updater` est une version simplifiée du processus de m
 | Variable | Description | Défaut |
 |----------|-------------|---------|
 | `dry_run` | Mode simulation sans modifications | `false` |
-| `repository_server` | Serveur de stockage des firmwares | `"backup.example.com"` |
-| `repository_path` | Chemin sur le serveur repository | `"/firmware"` |
+| `firmware_source_type` | Type de source du firmware ("local" ou "remote") | `"local"` |
+| `local_firmware_path` | Chemin local où se trouve le firmware | `"/opt/aruba_reports/firmware"` |
+| `repository_server` | Serveur de stockage (local ou HTTP) | `"backup.example.com"` |
+| `repository_path` | Chemin sur le serveur repository (pour HTTP) | `"/firmware"` |
 | `backup_enabled` | Activer la sauvegarde de configuration | `true` |
 | `backup_path` | Chemin de sauvegarde | `"/backups"` |
 | `upload_timeout` | Timeout pour l'upload (secondes) | `600` |
@@ -56,13 +58,31 @@ Le rôle `simple_firmware_updater` est une version simplifiée du processus de m
         firmware_filename: "ArubaOS-CX_6100-6000_10_13_1120.swi"
 ```
 
-### Playbook avec personnalisation
+### Playbook avec source locale (défaut)
 
 ```yaml
-- name: Mise à jour firmware avec options
+- name: Mise à jour firmware depuis fichier local
   hosts: switches_aruba
   gather_facts: no
   vars:
+    firmware_source_type: "local"
+    local_firmware_path: "/opt/aruba_reports/firmware"
+    repository_server: "s-ansible-1"  # Serveur où se trouve le fichier
+  roles:
+    - role: simple_firmware_updater
+      vars:
+        switch_model: "6000"
+        firmware_filename: "ArubaOS-CX_6000_10_13_1120.swi"
+```
+
+### Playbook avec source HTTP distante
+
+```yaml
+- name: Mise à jour firmware depuis serveur HTTP
+  hosts: switches_aruba
+  gather_facts: no
+  vars:
+    firmware_source_type: "remote"
     repository_server: "firmware.monentreprise.com"
     repository_path: "/aruba/firmwares"
     backup_path: "/aruba/backups"

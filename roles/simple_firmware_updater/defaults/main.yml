@@ -5,7 +5,13 @@
 switch_model: ""
 firmware_filename: ""
 
-# Serveur repository
+# Mode de stockage du firmware (local ou remote)
+firmware_source_type: "local"  # Options: "local" ou "remote"
+
+# Configuration pour source locale
+local_firmware_path: "/opt/aruba_reports/firmware"  # Chemin local où se trouve le firmware
+
+# Configuration pour source distante (HTTP/HTTPS)
 repository_server: "{{ hostvars[inventory_hostname]['repository_server'] | default('backup.example.com') }}"
 repository_path: "/firmware"
 repository_user: "{{ hostvars[inventory_hostname]['repository_user'] | default('ansible') }}"
