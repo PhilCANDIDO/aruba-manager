@@ -147,9 +147,9 @@
 
 - name: "(backup_config) Afficher le résumé de la sauvegarde"
   ansible.builtin.debug:
-    msg: |
-      {{ msg_backup_success }}
-      Taille: {{ backup_stat.stat.size | default(0) }} bytes
-      Emplacement: {{ repository_server }}:{{ backup_path }}/{{ inventory_hostname }}/{{ backup_filename }}
+    msg: 
+      - "{{ msg_backup_success }}"
+      - "Taille: {{ backup_stat.stat.size | default(0) }} bytes"
+      - "Emplacement: {{ repository_server }}:{{ backup_path }}/{{ inventory_hostname }}/{{ backup_filename }}"
   tags:
     - backup

@@ -17,13 +17,13 @@
 
 - name: "(main) Afficher les informations de mise à jour"
   ansible.builtin.debug:
-    msg: |
-      === MISE À JOUR FIRMWARE SIMPLIFIÉE ===
-      Switch: {{ inventory_hostname }}
-      Modèle attendu: {{ switch_model }}
-      Firmware: {{ firmware_filename }}
-      Mode: {{ dry_run | bool | ternary('DRY-RUN', 'NORMAL') }}
-      =====================================
+    msg: 
+      - "=== MISE À JOUR FIRMWARE SIMPLIFIÉE ==="
+      - "Switch: {{ inventory_hostname }}"
+      - "Modèle attendu: {{ switch_model }}"
+      - "Firmware: {{ firmware_filename }}"
+      - "Mode: {{ dry_run | bool | ternary('DRY-RUN', 'NORMAL') }}"
+      - "========================================="
 
 # Étape 1: Vérification du modèle
 - name: "(main) 1. Vérification du modèle du switch"
@@ -75,12 +75,12 @@
 # Mode dry-run: Afficher ce qui serait fait
 - name: "(main) Afficher les actions qui seraient effectuées (DRY-RUN)"
   ansible.builtin.debug:
-    msg: |
-      === ACTIONS QUI SERAIENT EFFECTUÉES ===
-      ✓ Upload du firmware {{ firmware_filename }} sur la partition primary
-      ✓ Redémarrage du switch sur la nouvelle version
-      ✓ Validation de la version après redémarrage
-      ======================================
+    msg:
+      - "=== ACTIONS QUI SERAIENT EFFECTUÉES ==="
+      - "✓ Upload du firmware {{ firmware_filename }} sur la partition primary"
+      - "✓ Redémarrage du switch sur la nouvelle version"
+      - "✓ Validation de la version après redémarrage"
+      - "======================================"
   when: dry_run | bool
   tags:
     - upload
@@ -89,20 +89,20 @@
 
 - name: "(main) Afficher le résumé de la mise à jour"
   ansible.builtin.debug:
-    msg: |
-      === MISE À JOUR TERMINÉE AVEC SUCCÈS ===
-      Switch: {{ inventory_hostname }}
-      Version installée: {{ new_version }}
-      ========================================
+    msg: 
+      - "=== MISE À JOUR TERMINÉE AVEC SUCCÈS ==="
+      - "Switch: {{ inventory_hostname }}"
+      - "Version installée: {{ new_version }}"
+      - "========================================"
   when: not (dry_run | bool)
 
 - name: "(main) Afficher le résumé du dry-run"
   ansible.builtin.debug:
-    msg: |
-      === DRY-RUN TERMINÉ ===
-      Switch: {{ inventory_hostname }}
-      Version actuelle: {{ primary_version | default('N/A') }}
-      Version cible: {{ target_version | default('N/A') }}
-      Aucune modification effectuée
-      ======================
+    msg: 
+      - "=== DRY-RUN TERMINÉ ==="
+      - "Switch: {{ inventory_hostname }}"
+      - "Version actuelle: {{ primary_version | default('N/A') }}"
+      - "Version cible: {{ target_version | default('N/A') }}"
+      - "Aucune modification effectuée"
+      - "======================"
   when: dry_run | bool

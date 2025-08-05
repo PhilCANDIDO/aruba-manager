@@ -14,7 +14,7 @@
   delegate_to: "{{ repository_server }}"
   when: firmware_source_type == "local"
 
-- name: "(upload_firmware) Upload du firmware depuis le fichier local"
+- name: "(upload_firmware) Upload du firmware depuis le fichier local (wait_firmware_upload: true)"
   arubanetworks.aoscx.aoscx_upload_firmware:
     partition_name: "primary"
     firmware_file_path: "/tmp/{{ firmware_filename }}"
@@ -41,11 +41,11 @@
 
 - name: "(upload_firmware) Vérifier le statut de l'upload"
   ansible.builtin.debug:
-    msg: |
-      ✓ Upload terminé avec succès
-      Partition: primary
-      Fichier: {{ firmware_filename }}
-      Source: {{ firmware_source_type }}
+    msg:
+      - "✓ Upload terminé avec succès"
+      - "Partition: primary"
+      - "Fichier: {{ firmware_filename }}"
+      - "Source: {{ firmware_source_type }}"
   when: upload_result is succeeded
 
 - name: "(upload_firmware) Attendre la fin de l'écriture du firmware"
@@ -61,10 +61,10 @@
 
 - name: "(upload_firmware) Afficher l'état des partitions après upload"
   ansible.builtin.debug:
-    msg: |
-      État des partitions après upload:
-      Primary: {{ images_after_upload.ansible_facts.ansible_net_software_images.primary.version | default('N/A') }}
-      Secondary: {{ images_after_upload.ansible_facts.ansible_net_software_images.secondary.version | default('N/A') }}
+    msg: 
+      - "État des partitions après upload:"
+      - "Primary: {{ images_after_upload.ansible_facts.ansible_net_software_images.primary.version | default('N/A') }}"
+      - "Secondary: {{ images_after_upload.ansible_facts.ansible_net_software_images.secondary.version | default('N/A') }}"
 
 # === Nettoyage ===
 - name: "(upload_firmware) Nettoyer le fichier temporaire local"
