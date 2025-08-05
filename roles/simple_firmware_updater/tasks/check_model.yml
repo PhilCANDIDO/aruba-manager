@@ -8,19 +8,51 @@
       - product_info
   register: switch_facts
 
-- name: "Extraire le modèle depuis les facts"
+- name: "Debug - Afficher tous les facts récupérés"
+  ansible.builtin.debug:
+    var: switch_facts.ansible_facts
+  when: dry_run | bool or verbose_output | default(false)
+
+- name: "Debug - Afficher les clés disponibles dans ansible_facts"
+  ansible.builtin.debug:
+    msg: "Clés disponibles: {{ switch_facts.ansible_facts.keys() | list }}"
+
+- name: "Initialiser detected_model avec une valeur par défaut"
   ansible.builtin.set_fact:
-    detected_model: "{{ switch_facts.ansible_facts.ansible_net_model | regex_search('(\\d{4})', '\\1') | first | default('unknown') }}"
-  when: switch_facts.ansible_facts.ansible_net_model is defined
+    detected_model: "unknown"
+
+- name: "Extraire le modèle depuis ansible_net_model"
+  ansible.builtin.set_fact:
+    detected_model: "{{ switch_facts.ansible_facts.ansible_net_model | regex_search('(\\d{4})', '\\1') | first }}"
+  when: 
+    - switch_facts.ansible_facts.ansible_net_model is defined
+    - switch_facts.ansible_facts.ansible_net_model | regex_search('(\\d{4})')
+
+- name: "Essayer d'extraire le modèle depuis ansible_net_platform"
+  ansible.builtin.set_fact:
+    detected_model: "{{ switch_facts.ansible_facts.ansible_net_platform | regex_search('(\\d{4})', '\\1') | first }}"
+  when: 
+    - detected_model == "unknown"
+    - switch_facts.ansible_facts.ansible_net_platform is defined
+    - switch_facts.ansible_facts.ansible_net_platform | regex_search('(\\d{4})')
+
+- name: "Essayer d'extraire le modèle depuis product_info"
+  ansible.builtin.set_fact:
+    detected_model: "{{ switch_facts.ansible_facts.ansible_net_product_info.product_model | regex_search('(\\d{4})', '\\1') | first }}"
+  when: 
+    - detected_model == "unknown"
+    - switch_facts.ansible_facts.ansible_net_product_info is defined
+    - switch_facts.ansible_facts.ansible_net_product_info.product_model is defined
+    - switch_facts.ansible_facts.ansible_net_product_info.product_model | regex_search('(\\d{4})')
 
 - name: "Gérer le cas où le modèle n'est pas trouvé"
   ansible.builtin.fail:
-    msg: "ERREUR: Impossible de déterminer le modèle du switch"
+    msg: "ERREUR: Impossible de déterminer le modèle du switch. Facts disponibles: {{ switch_facts.ansible_facts.keys() | list }}"
   when: detected_model == 'unknown'
 
 - name: "Afficher le modèle détecté"
   ansible.builtin.debug:
-    msg: "Modèle détecté: {{ detected_model }} ({{ switch_facts.ansible_facts.ansible_net_model }})"
+    msg: "Modèle détecté: {{ detected_model }}"
 
 - name: "Vérifier la correspondance du modèle"
   ansible.builtin.fail:
