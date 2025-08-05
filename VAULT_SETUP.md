@@ -64,6 +64,36 @@ Le rôle utilisera automatiquement les credentials du vault pour :
 - Créer les répertoires nécessaires
 - Transférer les fichiers de sauvegarde
 
+## Prérequis pour l'authentification SSH
+
+### Option 1 : Utiliser des clés SSH (recommandé)
+
+Configurez l'authentification par clé SSH entre le serveur Ansible et le serveur repository :
+
+```bash
+# Sur le serveur Ansible
+ssh-keygen -t rsa -b 4096
+ssh-copy-id deploy@10.20.3.11
+```
+
+Dans ce cas, vous n'avez pas besoin de `repository_password` dans le vault.
+
+### Option 2 : Utiliser sshpass (pour les mots de passe)
+
+Si vous devez utiliser des mots de passe SSH, installez `sshpass` :
+
+```bash
+# Sur Red Hat/CentOS
+sudo yum install sshpass
+
+# Sur Debian/Ubuntu
+sudo apt-get install sshpass
+```
+
+### Option 3 : Vérification locale uniquement
+
+Si le serveur Ansible a accès au répertoire de firmware (montage NFS, répertoire local), la vérification se fera localement sans SSH.
+
 ## Sécurité
 
 - Ne jamais commiter le fichier vault non chiffré

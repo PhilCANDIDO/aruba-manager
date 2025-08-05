@@ -21,6 +21,9 @@ Le rôle `simple_firmware_updater` est une version simplifiée du processus de m
 - Collection `arubanetworks.aoscx` installée
 - Accès SSH configuré sur les switches
 - Serveur repository HTTP/HTTPS accessible
+- Pour l'authentification SSH avec mot de passe : `sshpass` installé sur le serveur Ansible
+  - Alternative : Utiliser des clés SSH (recommandé)
+  - Voir VAULT_SETUP.md pour plus de détails
 
 ## Variables requises
 
