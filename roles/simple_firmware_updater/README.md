@@ -239,7 +239,7 @@ ansible-playbook update_simple.yml --tags "validate"
 ### 4. Sauvegarde (`backup_config.yml`)
 - Sauvegarde la configuration avec `aoscx_backup_config`
 - Sauvegarde localement puis transfère au serveur repository
-- Nomme le fichier avec horodatage
+- Nomme le fichier : `YYYYMMDD_HHMMSS_config_hostname_backup.json`
 - Format de sortie : JSON (format par défaut du module)
 
 ### 5. Upload du firmware (`upload_firmware.yml`)
@@ -303,6 +303,11 @@ Le rôle s'arrête immédiatement en cas d'erreur à n'importe quelle étape :
 Tous les messages utilisateur sont en français et configurables via les variables `msg_*` dans `defaults/main.yml`.
 
 ## Exemples de sortie
+
+### Noms de fichiers de sauvegarde
+- `20250805_182431_config_switch01_backup.json`
+- `20250805_143022_config_switch-core-01_backup.json`
+- `20250805_090515_config_switch-access-02_backup.json`
 
 ### Succès
 ```

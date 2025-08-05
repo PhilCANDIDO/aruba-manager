@@ -19,7 +19,7 @@ repository_user: "{{ hostvars[inventory_hostname]['repository_user'] | default('
 # Configuration de sauvegarde
 backup_enabled: true
 backup_path: "/backups/network/aruba/config_backups"
-backup_filename: "config_backup_{{ inventory_hostname }}_{{ hostvars['localhost']['global_timestamp'] | default('manual') }}.cfg"
+backup_filename: "{{ hostvars['localhost']['global_timestamp'] | default('manual') }}_config_{{ inventory_hostname }}_backup.json"
 
 # Mode dry-run
 dry_run: false

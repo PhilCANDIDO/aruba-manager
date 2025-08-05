@@ -3,7 +3,7 @@
 
 - name: "(backup_config) Définir les variables nécessaires"
   ansible.builtin.set_fact:
-    backup_filename: "{{ backup_filename | default('config_backup_' + inventory_hostname + '_' + (hostvars['localhost']['global_timestamp'] | default('manual')) + '.cfg') }}"
+    backup_filename: "{{ backup_filename | default((hostvars['localhost']['global_timestamp'] | default('manual')) + '_config_' + inventory_hostname + '_backup.json') }}"
     remote_temp_dir: "{{ remote_temp_dir | default('/tmp/ansible_simple_firmware') }}"
     repository_server: "{{ repository_server | default(hostvars[inventory_hostname]['repository_server'] | default('s-ansible-1')) }}"
   tags:
