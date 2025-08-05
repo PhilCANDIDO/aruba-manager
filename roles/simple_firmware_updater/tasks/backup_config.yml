@@ -8,12 +8,41 @@
     mode: '0755'
   delegate_to: localhost
 
-- name: "(backup_config) Sauvegarder la configuration via l'API"
-  arubanetworks.aoscx.aoscx_config:
-    backup: yes
-    backup_options:
-      filename: "{{ remote_temp_dir }}/{{ backup_filename }}"
-  register: backup_result
+- name: "(backup_config) Récupérer la configuration actuelle via REST API"
+  ansible.builtin.uri:
+    url: "https://{{ ansible_host }}/rest/v10.11/fullconfigs/running-config"
+    method: GET
+    user: "{{ ansible_user }}"
+    password: "{{ ansible_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    headers:
+      Accept: "application/json"
+  register: config_response
+  delegate_to: localhost
+
+- name: "(backup_config) Extraire la configuration du JSON"
+  ansible.builtin.set_fact:
+    running_config_content: "{{ config_response.json }}"
+
+- name: "(backup_config) Sauvegarder la configuration en format JSON"
+  ansible.builtin.copy:
+    content: "{{ running_config_content | to_nice_json }}"
+    dest: "{{ remote_temp_dir }}/{{ backup_filename }}.json"
+    mode: '0644'
+  delegate_to: localhost
+
+- name: "(backup_config) Sauvegarder la configuration en format texte si disponible"
+  ansible.builtin.copy:
+    content: |
+      # Configuration backup for {{ inventory_hostname }}
+      # Date: {{ hostvars['localhost']['global_timestamp'] | default('manual') }}
+      # Version: {{ primary_version | default('unknown') }}
+      
+      {{ running_config_content | to_nice_json }}
+    dest: "{{ remote_temp_dir }}/{{ backup_filename }}"
+    mode: '0644'
+  delegate_to: localhost
 
 - name: "(backup_config) Vérifier la sauvegarde locale"
   ansible.builtin.stat:
