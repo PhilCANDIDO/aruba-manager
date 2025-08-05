@@ -1,0 +1,58 @@
+---
+# tasks/reboot_switch.yml - Redémarrage du switch sur la partition primary
+
+- name: "Afficher le début du redémarrage"
+  ansible.builtin.debug:
+    msg: "{{ msg_reboot_started }}"
+
+- name: "Sauvegarder l'heure de début du redémarrage"
+  ansible.builtin.set_fact:
+    reboot_start_time: "{{ ansible_date_time.epoch }}"
+
+- name: "Définir la partition de boot sur primary"
+  arubanetworks.aoscx.aoscx_boot_firmware:
+    partition_name: "primary"
+  register: boot_config
+
+- name: "Redémarrer le switch"
+  arubanetworks.aoscx.aoscx_reboot:
+    confirm: true
+  async: 10
+  poll: 0
+  register: reboot_result
+
+- name: "Attendre que le switch soit inaccessible"
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    port: 22
+    state: stopped
+    delay: 10
+    timeout: 120
+  delegate_to: localhost
+
+- name: "Attendre que le switch redémarre complètement"
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    port: 22
+    state: started
+    delay: 60
+    timeout: "{{ reboot_timeout }}"
+  delegate_to: localhost
+
+- name: "Pause supplémentaire pour stabilisation"
+  ansible.builtin.pause:
+    seconds: 60
+    prompt: "Attente de la stabilisation complète du switch..."
+
+- name: "Vérifier la connectivité SSH"
+  ansible.builtin.wait_for_connection:
+    delay: 10
+    timeout: 180
+
+- name: "Calculer la durée du redémarrage"
+  ansible.builtin.set_fact:
+    reboot_duration: "{{ (ansible_date_time.epoch | int) - (reboot_start_time | int) }}"
+
+- name: "Afficher la durée du redémarrage"
+  ansible.builtin.debug:
+    msg: "✓ Switch redémarré avec succès en {{ reboot_duration }} secondes"

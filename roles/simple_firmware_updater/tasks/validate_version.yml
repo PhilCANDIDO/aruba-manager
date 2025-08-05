@@ -1,0 +1,48 @@
+---
+# tasks/validate_version.yml - Validation de la version après redémarrage
+
+- name: "Récupérer la version actuelle après redémarrage"
+  arubanetworks.aoscx.aoscx_command:
+    commands:
+      - "show version | include Version"
+  register: version_after_reboot
+  retries: 3
+  delay: 10
+
+- name: "Extraire la version installée"
+  ansible.builtin.set_fact:
+    installed_version: "{{ version_after_reboot.stdout[0] | regex_search('Version\\s+:\\s+.*?(\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)', '\\1') | first }}"
+
+- name: "Sauvegarder la nouvelle version"
+  ansible.builtin.set_fact:
+    new_version: "{{ installed_version }}"
+
+- name: "Vérifier la correspondance des versions"
+  ansible.builtin.assert:
+    that:
+      - installed_version == target_version
+    fail_msg: "{{ msg_validation_failed }}"
+    success_msg: "{{ msg_validation_success }}"
+
+- name: "Récupérer l'état des partitions"
+  arubanetworks.aoscx.aoscx_command:
+    commands:
+      - "show images"
+  register: final_images_state
+
+- name: "Afficher le résumé final"
+  ansible.builtin.debug:
+    msg: |
+      === VALIDATION RÉUSSIE ===
+      Version précédente: {{ primary_version }}
+      Version installée: {{ installed_version }}
+      État des partitions:
+      {{ final_images_state.stdout[0] }}
+      =========================
+
+- name: "Nettoyer le répertoire temporaire"
+  ansible.builtin.file:
+    path: "{{ remote_temp_dir }}"
+    state: absent
+  delegate_to: localhost
+  when: cleanup_server_files | default(true)

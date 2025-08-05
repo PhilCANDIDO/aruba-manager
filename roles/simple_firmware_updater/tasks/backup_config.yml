@@ -1,0 +1,53 @@
+---
+# tasks/backup_config.yml - Sauvegarde simplifiée de la configuration
+
+- name: "Créer le répertoire temporaire local"
+  ansible.builtin.file:
+    path: "{{ remote_temp_dir }}"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+
+- name: "Récupérer la configuration actuelle"
+  arubanetworks.aoscx.aoscx_command:
+    commands:
+      - "show running-config"
+  register: running_config
+
+- name: "Sauvegarder la configuration localement"
+  ansible.builtin.copy:
+    content: "{{ running_config.stdout[0] }}"
+    dest: "{{ remote_temp_dir }}/{{ backup_filename }}"
+    mode: '0644'
+  delegate_to: localhost
+
+- name: "Vérifier la sauvegarde locale"
+  ansible.builtin.stat:
+    path: "{{ remote_temp_dir }}/{{ backup_filename }}"
+  register: backup_stat
+  delegate_to: localhost
+
+- name: "Transférer la sauvegarde vers le serveur repository"
+  ansible.builtin.copy:
+    src: "{{ remote_temp_dir }}/{{ backup_filename }}"
+    dest: "{{ backup_path }}/{{ backup_filename }}"
+    mode: '0644'
+  delegate_to: "{{ repository_server }}"
+  become: true
+  when: 
+    - repository_server | length > 0
+    - not (dry_run | bool)
+
+- name: "[DRY-RUN] Simuler le transfert de la sauvegarde"
+  ansible.builtin.debug:
+    msg: "{{ msg_dryrun_skip }} - Transfert de {{ backup_filename }} vers {{ repository_server }}:{{ backup_path }}"
+  when:
+    - repository_server | length > 0
+    - dry_run | bool
+
+- name: "Afficher le résumé de la sauvegarde"
+  ansible.builtin.debug:
+    msg: |
+      {{ msg_backup_success }}
+      Taille: {{ backup_stat.stat.size }} bytes
+      Emplacement: {{ repository_server }}:{{ backup_path }}/{{ backup_filename }}

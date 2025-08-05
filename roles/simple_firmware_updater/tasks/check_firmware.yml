@@ -1,0 +1,33 @@
+---
+# tasks/check_firmware.yml - Vérification de l'existence du firmware sur le serveur repository
+
+- name: "Construire l'URL du firmware"
+  ansible.builtin.set_fact:
+    firmware_url: "http://{{ repository_server }}{{ repository_path }}/{{ firmware_filename }}"
+
+- name: "Vérifier l'existence du firmware sur le serveur repository"
+  ansible.builtin.uri:
+    url: "{{ firmware_url }}"
+    method: HEAD
+    status_code: [200, 201]
+    timeout: 30
+  delegate_to: localhost
+  register: firmware_check
+  failed_when: false
+
+- name: "Échec si le firmware n'existe pas"
+  ansible.builtin.fail:
+    msg: "{{ msg_firmware_not_found }}"
+  when: firmware_check.status != 200
+
+- name: "Récupérer les informations du firmware"
+  ansible.builtin.set_fact:
+    firmware_size: "{{ firmware_check.content_length | default(0) }}"
+    firmware_size_mb: "{{ (firmware_check.content_length | default(0) | int / 1024 / 1024) | round(2) }}"
+
+- name: "Afficher les informations du firmware"
+  ansible.builtin.debug:
+    msg: |
+      ✓ Firmware trouvé sur le serveur repository
+      Fichier: {{ firmware_filename }}
+      Taille: {{ firmware_size_mb }} MB

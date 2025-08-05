@@ -1,0 +1,39 @@
+---
+# tasks/compare_versions.yml - Comparaison des versions firmware
+
+- name: "Récupérer la version actuelle de la partition primary"
+  arubanetworks.aoscx.aoscx_command:
+    commands:
+      - "show images"
+  register: images_output
+
+- name: "Parser la sortie des images"
+  ansible.builtin.set_fact:
+    primary_version: "{{ images_output.stdout[0] | regex_search('primary\\s+:\\s+ArubaOS-CX.*?(\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)', '\\1') | first | default('0.0.0') }}"
+
+- name: "Extraire la version du nom du firmware"
+  ansible.builtin.set_fact:
+    target_version: "{{ firmware_filename | regex_search('(\\d+)_(\\d+)_(\\d+)(?:_(\\d+))?', '\\1.\\2.\\3.\\4') | regex_replace('\\.+$', '') }}"
+
+- name: "Afficher les versions"
+  ansible.builtin.debug:
+    msg: |
+      Version actuelle (primary): {{ primary_version }}
+      Version cible: {{ target_version }}
+
+- name: "Comparer les versions"
+  ansible.builtin.set_fact:
+    version_comparison: "{{ target_version is version(primary_version, '>') }}"
+
+- name: "Vérifier si la mise à jour est nécessaire"
+  ansible.builtin.debug:
+    msg: "{{ msg_version_not_superior }}"
+  when: not version_comparison
+
+- name: "Arrêter si la version n'est pas supérieure"
+  ansible.builtin.meta: end_play
+  when: not version_comparison
+
+- name: "Confirmer que la mise à jour est nécessaire"
+  ansible.builtin.debug:
+    msg: "✓ Mise à jour nécessaire: {{ primary_version }} → {{ target_version }}"

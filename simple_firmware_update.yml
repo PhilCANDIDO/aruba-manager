@@ -1,0 +1,86 @@
+---
+# simple_firmware_update.yml - Playbook exemple pour mise à jour firmware simplifiée
+
+- name: Mise à jour firmware simplifiée des switches Aruba AOS-CX
+  hosts: aruba_aoscx
+  gather_facts: no
+  connection: network_cli
+  
+  vars:
+    # Ces variables doivent être définies pour chaque exécution
+    # switch_model: "6100"
+    # firmware_filename: "ArubaOS-CX_6100-6000_10_13_1120.swi"
+    
+    # Variables optionnelles (peuvent être surchargées)
+    repository_server: "{{ hostvars[inventory_hostname]['repository_server'] | default('backup.example.com') }}"
+    repository_path: "/firmware"
+    backup_path: "/backups"
+    
+  pre_tasks:
+    - name: Vérifier que les variables requises sont définies
+      ansible.builtin.assert:
+        that:
+          - switch_model is defined
+          - switch_model | length > 0
+          - firmware_filename is defined
+          - firmware_filename | length > 0
+        fail_msg: |
+          ERREUR: Les variables requises ne sont pas définies.
+          Vous devez définir:
+          - switch_model (ex: "6100")
+          - firmware_filename (ex: "ArubaOS-CX_6100-6000_10_13_1120.swi")
+        success_msg: "✓ Variables requises définies"
+      tags:
+        - always
+
+    - name: Afficher les paramètres de mise à jour
+      ansible.builtin.debug:
+        msg: |
+          === PARAMÈTRES DE MISE À JOUR ===
+          Hosts ciblés: {{ ansible_play_hosts | length }} switch(es)
+          Modèle attendu: {{ switch_model }}
+          Firmware: {{ firmware_filename }}
+          Repository: {{ repository_server }}{{ repository_path }}
+          ================================
+      run_once: true
+      tags:
+        - always
+
+  roles:
+    - role: simple_firmware_updater
+
+  post_tasks:
+    - name: Générer un résumé de l'exécution
+      ansible.builtin.debug:
+        msg: |
+          === RÉSUMÉ DE L'EXÉCUTION ===
+          Total des hosts: {{ ansible_play_hosts | length }}
+          Hosts mis à jour: {{ ansible_play_hosts_all | difference(ansible_failed_hosts | default([])) | length }}
+          Hosts en échec: {{ ansible_failed_hosts | default([]) | length }}
+          =============================
+      run_once: true
+      tags:
+        - always
+
+# Exemple d'utilisation:
+# ansible-playbook -i environments/prod/hosts simple_firmware_update.yml \
+#   -e "switch_model=6100" \
+#   -e "firmware_filename=ArubaOS-CX_6100-6000_10_13_1120.swi"
+
+# Avec limitation à certains hosts:
+# ansible-playbook -i environments/prod/hosts simple_firmware_update.yml \
+#   -e "switch_model=6100" \
+#   -e "firmware_filename=ArubaOS-CX_6100-6000_10_13_1120.swi" \
+#   --limit "switch-01,switch-02"
+
+# Avec tags pour exécution partielle:
+# ansible-playbook -i environments/prod/hosts simple_firmware_update.yml \
+#   -e "switch_model=6100" \
+#   -e "firmware_filename=ArubaOS-CX_6100-6000_10_13_1120.swi" \
+#   --tags "check,backup"
+
+# En mode dry-run (simulation sans modifications):
+# ansible-playbook -i environments/prod/hosts simple_firmware_update.yml \
+#   -e "switch_model=6100" \
+#   -e "firmware_filename=ArubaOS-CX_6100-6000_10_13_1120.swi" \
+#   -e "dry_run=true"

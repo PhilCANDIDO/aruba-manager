@@ -1,0 +1,36 @@
+---
+# defaults/main.yml - Variables par défaut pour simple_firmware_updater
+
+# Variables requises (doivent être définies par l'utilisateur)
+switch_model: ""
+firmware_filename: ""
+
+# Serveur repository
+repository_server: "{{ hostvars[inventory_hostname]['repository_server'] | default('backup.example.com') }}"
+repository_path: "/firmware"
+repository_user: "{{ hostvars[inventory_hostname]['repository_user'] | default('ansible') }}"
+
+# Configuration de sauvegarde
+backup_enabled: true
+backup_path: "/backups"
+backup_filename: "{{ inventory_hostname }}_{{ ansible_date_time.date }}_{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}.cfg"
+
+# Mode dry-run
+dry_run: false
+
+# Timeouts
+upload_timeout: 600  # 10 minutes
+reboot_timeout: 900  # 15 minutes
+connection_timeout: 30
+
+# Messages utilisateur (en français)
+msg_model_mismatch: "ERREUR: Le modèle du switch ({{ detected_model }}) ne correspond pas au modèle attendu ({{ switch_model }})"
+msg_firmware_not_found: "ERREUR: Le firmware {{ firmware_filename }} n'existe pas sur le serveur repository"
+msg_version_not_superior: "INFO: La version actuelle est déjà égale ou supérieure à la version cible"
+msg_backup_success: "Sauvegarde de configuration réussie: {{ backup_filename }}"
+msg_upload_started: "Début du téléversement du firmware {{ firmware_filename }}"
+msg_reboot_started: "Redémarrage du switch en cours..."
+msg_validation_success: "Mise à jour réussie! Version actuelle: {{ current_version }}"
+msg_validation_failed: "ERREUR: La version après redémarrage ne correspond pas à la version attendue"
+msg_dryrun_mode: "MODE DRY-RUN ACTIVÉ - Aucune modification ne sera effectuée"
+msg_dryrun_skip: "[DRY-RUN] Cette étape serait exécutée en mode normal"

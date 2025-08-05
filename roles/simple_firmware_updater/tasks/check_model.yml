@@ -1,0 +1,26 @@
+---
+# tasks/check_model.yml - Vérification du modèle du switch
+
+- name: "Récupérer le modèle du switch"
+  arubanetworks.aoscx.aoscx_command:
+    commands:
+      - "show system | include Model"
+  register: model_output
+
+- name: "Extraire le modèle depuis la sortie"
+  ansible.builtin.set_fact:
+    detected_model: "{{ model_output.stdout[0] | regex_search('(\\d{4})', '\\1') | first }}"
+  when: model_output.stdout[0] is defined
+
+- name: "Afficher le modèle détecté"
+  ansible.builtin.debug:
+    msg: "Modèle détecté: {{ detected_model }}"
+
+- name: "Vérifier la correspondance du modèle"
+  ansible.builtin.fail:
+    msg: "{{ msg_model_mismatch }}"
+  when: detected_model != switch_model
+
+- name: "Confirmer la correspondance du modèle"
+  ansible.builtin.debug:
+    msg: "✓ Le modèle {{ detected_model }} correspond au modèle attendu {{ switch_model }}"

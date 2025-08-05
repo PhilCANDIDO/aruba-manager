@@ -1,0 +1,25 @@
+---
+# vars/main.yml - Variables internes du rôle (non modifiables par l'utilisateur)
+
+# Informations système
+role_name: "simple_firmware_updater"
+role_version: "1.0.0"
+
+# Chemins internes
+remote_temp_dir: "/tmp/ansible_simple_firmware"
+firmware_upload_path: "/var/firmware"
+
+# Regex pour extraction de version
+version_regex: '(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?'
+
+# Commandes système
+cmd_get_model: "show system | include Model"
+cmd_get_version: "show version | include Version"
+cmd_check_partition: "show images"
+cmd_backup_config: "copy running-config {{ backup_destination }}"
+
+# États de validation
+valid_states:
+  - "ready"
+  - "active"
+  - "primary"

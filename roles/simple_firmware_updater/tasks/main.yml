@@ -1,0 +1,98 @@
+---
+# tasks/main.yml - Workflow principal du rôle simple_firmware_updater
+
+- name: "Vérifier le mode dry-run"
+  ansible.builtin.debug:
+    msg: "{{ msg_dryrun_mode }}"
+  when: dry_run | bool
+
+- name: "Afficher les informations de mise à jour"
+  ansible.builtin.debug:
+    msg: |
+      === MISE À JOUR FIRMWARE SIMPLIFIÉE ===
+      Switch: {{ inventory_hostname }}
+      Modèle attendu: {{ switch_model }}
+      Firmware: {{ firmware_filename }}
+      Mode: {{ dry_run | bool | ternary('DRY-RUN', 'NORMAL') }}
+      =====================================
+
+# Étape 1: Vérification du modèle
+- name: "1. Vérification du modèle du switch"
+  include_tasks: check_model.yml
+  tags:
+    - check
+
+# Étape 2: Vérification du firmware
+- name: "2. Vérification de l'existence du firmware"
+  include_tasks: check_firmware.yml
+  tags:
+    - check
+
+# Étape 3: Comparaison des versions
+- name: "3. Comparaison des versions"
+  include_tasks: compare_versions.yml
+  tags:
+    - check
+
+# Étape 4: Sauvegarde de configuration
+- name: "4. Sauvegarde de la configuration"
+  include_tasks: backup_config.yml
+  when: backup_enabled | default(true)
+  tags:
+    - backup
+
+# Étape 5: Upload du firmware
+- name: "5. Upload du firmware"
+  include_tasks: upload_firmware.yml
+  when: not (dry_run | bool)
+  tags:
+    - upload
+
+# Étape 6: Redémarrage du switch
+- name: "6. Redémarrage du switch"
+  include_tasks: reboot_switch.yml
+  when: not (dry_run | bool)
+  tags:
+    - reboot
+
+# Étape 7: Validation de la version
+- name: "7. Validation de la mise à jour"
+  include_tasks: validate_version.yml
+  when: not (dry_run | bool)
+  tags:
+    - validate
+
+# Mode dry-run: Afficher ce qui serait fait
+- name: "Afficher les actions qui seraient effectuées (DRY-RUN)"
+  ansible.builtin.debug:
+    msg: |
+      === ACTIONS QUI SERAIENT EFFECTUÉES ===
+      ✓ Upload du firmware {{ firmware_filename }} sur la partition primary
+      ✓ Redémarrage du switch sur la nouvelle version
+      ✓ Validation de la version après redémarrage
+      ======================================
+  when: dry_run | bool
+  tags:
+    - upload
+    - reboot
+    - validate
+
+- name: "Afficher le résumé de la mise à jour"
+  ansible.builtin.debug:
+    msg: |
+      === MISE À JOUR TERMINÉE AVEC SUCCÈS ===
+      Switch: {{ inventory_hostname }}
+      Version installée: {{ new_version }}
+      ========================================
+  when: not (dry_run | bool)
+
+- name: "Afficher le résumé du dry-run"
+  ansible.builtin.debug:
+    msg: |
+      === DRY-RUN TERMINÉ ===
+      Switch: {{ inventory_hostname }}
+      Version actuelle: {{ primary_version | default('N/A') }}
+      Version cible: {{ target_version | default('N/A') }}
+      Aucune modification effectuée
+      ======================
+  when: dry_run | bool

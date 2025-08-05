@@ -1,0 +1,39 @@
+---
+# tasks/upload_firmware.yml - Upload du firmware sur la partition primary
+
+- name: "Afficher le début de l'upload"
+  ansible.builtin.debug:
+    msg: "{{ msg_upload_started }}"
+
+- name: "Upload du firmware sur la partition primary"
+  arubanetworks.aoscx.aoscx_upload_firmware:
+    partition_name: "primary"
+    firmware_file_path: "{{ repository_server }}"
+    remote_firmware_file_name: "{{ firmware_filename }}"
+    vrf: "mgmt"
+  register: upload_result
+  async: "{{ upload_timeout }}"
+  poll: 30
+
+- name: "Vérifier le statut de l'upload"
+  ansible.builtin.debug:
+    msg: |
+      ✓ Upload terminé avec succès
+      Partition: primary
+      Fichier: {{ firmware_filename }}
+  when: upload_result is succeeded
+
+- name: "Attendre la fin de l'écriture du firmware"
+  ansible.builtin.pause:
+    seconds: 30
+    prompt: "Attente de la finalisation de l'écriture du firmware..."
+
+- name: "Vérifier l'installation du firmware"
+  arubanetworks.aoscx.aoscx_command:
+    commands:
+      - "show images"
+  register: images_after_upload
+
+- name: "Afficher l'état des partitions après upload"
+  ansible.builtin.debug:
+    msg: "{{ images_after_upload.stdout[0] }}"
