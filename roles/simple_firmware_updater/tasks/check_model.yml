@@ -8,15 +8,6 @@
       - product_info
   register: switch_facts
 
-- name: "Debug - Afficher tous les facts récupérés"
-  ansible.builtin.debug:
-    var: switch_facts.ansible_facts
-  when: dry_run | bool or verbose_output | default(false)
-
-- name: "Debug - Afficher les clés disponibles dans ansible_facts"
-  ansible.builtin.debug:
-    msg: "Clés disponibles: {{ switch_facts.ansible_facts.keys() | list }}"
-
 - name: "Initialiser detected_model avec une valeur par défaut"
   ansible.builtin.set_fact:
     detected_model: "unknown"
