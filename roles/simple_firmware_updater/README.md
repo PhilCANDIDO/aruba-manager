@@ -237,9 +237,10 @@ ansible-playbook update_simple.yml --tags "validate"
 - Arrête si la version cible n'est pas supérieure
 
 ### 4. Sauvegarde (`backup_config.yml`)
-- Récupère la configuration via `show running-config`
+- Sauvegarde la configuration au format texte CLI (identique à `show running-config`)
 - Sauvegarde localement puis transfère au serveur repository
 - Nomme le fichier avec horodatage
+- Format de sortie : texte CLI standard Aruba AOS-CX
 
 ### 5. Upload du firmware (`upload_firmware.yml`)
 - Upload le firmware sur la partition primary uniquement
