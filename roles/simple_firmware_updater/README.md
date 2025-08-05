@@ -157,12 +157,18 @@ ansible-playbook -i inventory/switches.yml simple_firmware_update.yml \
   --ask-vault-pass
 ```
 
-#### Méthode 3 : Playbook de test dédié
+#### Méthode 3 : Test direct avec include de tâche
 
-Utilisez le playbook `test_backup.yml` pour tester uniquement la sauvegarde :
+Pour tester uniquement la sauvegarde, vous pouvez utiliser le playbook existant avec uniquement le tag backup :
 
 ```bash
-ansible-playbook -i inventory/switches.yml test_backup.yml --ask-vault-pass
+# Test de sauvegarde uniquement sur un switch spécifique
+ansible-playbook -i inventory/switches.yml simple_firmware_update.yml \
+  -e "switch_model=6000" \
+  -e "firmware_filename=ArubaOS-CX_6100-6000_10_13_1120.swi" \
+  --tags "backup" \
+  --limit "switch01" \
+  --ask-vault-pass
 ```
 
 #### Option : Sauvegarde locale uniquement (sans sudo)
