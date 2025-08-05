@@ -248,8 +248,9 @@ ansible-playbook update_simple.yml --tags "validate"
 - Timeout configurable (défaut: 10 minutes)
 
 ### 6. Redémarrage (`reboot_switch.yml`)
-- Configure le boot sur la partition primary
-- Redémarre le switch
+- Configure le boot sur la partition primary avec `aoscx_boot_firmware`
+- Si nécessaire, force le redémarrage via l'API REST `/system/reboot`
+- Attend que le switch soit inaccessible puis accessible à nouveau
 - Attend la reconnexion (timeout: 15 minutes)
 
 ### 7. Validation (`validate_version.yml`)
@@ -381,6 +382,14 @@ Cette erreur apparaît lors de la connexion SSH au serveur repository avec un mo
    ansible-vault edit group_vars/all/vault.yml
    ```
 
+
+### Problème de redémarrage avec aoscx_boot_firmware
+
+Le module `aoscx_boot_firmware` configure la partition de boot mais ne force pas toujours le redémarrage :
+- Si la partition de boot change, le switch redémarre automatiquement
+- Si la partition est déjà configurée, aucun redémarrage n'est déclenché
+
+Le rôle utilise l'API REST `/system/reboot` comme solution de secours pour forcer le redémarrage si nécessaire.
 
 ### Autres problèmes
 

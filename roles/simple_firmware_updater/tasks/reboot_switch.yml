@@ -7,19 +7,35 @@
 
 - name: "(reboot_switch) Sauvegarder l'heure de début du redémarrage"
   ansible.builtin.set_fact:
-    reboot_start_time: "{{ ansible_date_time.epoch }}"
+    reboot_start_time: "{{ lookup('pipe', 'date +%s') }}"
 
-- name: "(reboot_switch) Définir la partition de boot sur primary"
+- name: "(reboot_switch) Configurer le boot sur primary et redémarrer"
   arubanetworks.aoscx.aoscx_boot_firmware:
     partition_name: "primary"
-  register: boot_config
+  register: boot_result
 
-- name: "(reboot_switch) Redémarrer le switch"
-  arubanetworks.aoscx.aoscx_reboot:
-    confirm: true
-  async: 10
-  poll: 0
-  register: reboot_result
+- name: "(reboot_switch) Afficher le résultat de la commande boot"
+  ansible.builtin.debug:
+    var: boot_result
+
+- name: "(reboot_switch) Message d'information sur le redémarrage"
+  ansible.builtin.debug:
+    msg: "Le switch devrait redémarrer automatiquement suite au changement de partition de boot"
+
+- name: "(reboot_switch) Forcer le redémarrage via l'API REST si nécessaire"
+  ansible.builtin.uri:
+    url: "https://{{ ansible_host }}/rest/v10.08/system/reboot"
+    method: POST
+    body_format: json
+    body: {}
+    user: "{{ aruba_user }}"
+    password: "{{ aruba_password }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: [200, 202]
+  delegate_to: localhost
+  when: boot_result.changed is defined and not boot_result.changed
+  ignore_errors: true
 
 - name: "(reboot_switch) Attendre que le switch soit inaccessible"
   ansible.builtin.wait_for:
@@ -51,7 +67,7 @@
 
 - name: "(reboot_switch) Calculer la durée du redémarrage"
   ansible.builtin.set_fact:
-    reboot_duration: "{{ (ansible_date_time.epoch | int) - (reboot_start_time | int) }}"
+    reboot_duration: "{{ (lookup('pipe', 'date +%s') | int) - (reboot_start_time | int) }}"
 
 - name: "(reboot_switch) Afficher la durée du redémarrage"
   ansible.builtin.debug:
