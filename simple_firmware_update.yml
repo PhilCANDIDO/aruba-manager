@@ -2,9 +2,8 @@
 # simple_firmware_update.yml - Playbook exemple pour mise à jour firmware simplifiée
 
 - name: Mise à jour firmware simplifiée des switches Aruba AOS-CX
-  hosts: aruba_aoscx
+  hosts: switches_aruba
   gather_facts: no
-  connection: network_cli
   
   vars:
     # Ces variables doivent être définies pour chaque exécution
@@ -12,9 +11,10 @@
     # firmware_filename: "ArubaOS-CX_6100-6000_10_13_1120.swi"
     
     # Variables optionnelles (peuvent être surchargées)
-    repository_server: "{{ hostvars[inventory_hostname]['repository_server'] | default('backup.example.com') }}"
-    repository_path: "/firmware"
-    backup_path: "/backups"
+    # Le repository_server est défini dans l'inventaire comme 's-ansible-1'
+    # repository_server est déjà défini dans l'inventaire
+    repository_path: "/opt/aruba_reports/firmware"
+    backup_path: "/opt/aruba_reports/backups"
     
   pre_tasks:
     - name: Vérifier que les variables requises sont définies
