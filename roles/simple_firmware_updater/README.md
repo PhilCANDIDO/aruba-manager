@@ -124,7 +124,10 @@ ansible-playbook update_simple.yml -e "dry_run=true"
 
 **IMPORTANT** : Il est fortement recommandé de tester et valider la sauvegarde avant toute mise à jour firmware.
 
-**Note sur les permissions** : Les opérations de sauvegarde nécessitent des privilèges sudo sur le serveur repository. Utilisez `--ask-become-pass` ou configurez le mot de passe sudo via Ansible Vault.
+**Note sur les permissions** : Les opérations de sauvegarde nécessitent des privilèges sudo sur le serveur repository. Le rôle utilise automatiquement les variables suivantes depuis votre vault :
+- `repository_user` : Utilisateur pour se connecter au serveur repository
+- `repository_password` : Mot de passe de connexion
+- `repository_become_password` : Mot de passe sudo/become
 
 #### Méthode 1 : Utiliser les tags (recommandé)
 
@@ -134,14 +137,12 @@ ansible-playbook -i inventory/switches.yml simple_firmware_update.yml \
   -e "switch_model=6000" \
   -e "firmware_filename=ArubaOS-CX_6100-6000_10_13_1120.swi" \
   --tags "check,backup" \
-  --ask-vault-pass \
-  --ask-become-pass
+  --ask-vault-pass
 
 # Sauvegarde uniquement (sans vérifications)
 ansible-playbook -i inventory/switches.yml simple_firmware_update.yml \
   --tags "backup" \
-  --ask-vault-pass \
-  --ask-become-pass
+  --ask-vault-pass
 ```
 
 #### Méthode 2 : Mode dry-run avec sauvegarde forcée
@@ -153,8 +154,7 @@ ansible-playbook -i inventory/switches.yml simple_firmware_update.yml \
   -e "firmware_filename=ArubaOS-CX_6100-6000_10_13_1120.swi" \
   -e "dry_run=true" \
   -e "force_backup_in_dryrun=true" \
-  --ask-vault-pass \
-  --ask-become-pass
+  --ask-vault-pass
 ```
 
 #### Méthode 3 : Playbook de test dédié
@@ -162,7 +162,7 @@ ansible-playbook -i inventory/switches.yml simple_firmware_update.yml \
 Utilisez le playbook `test_backup.yml` pour tester uniquement la sauvegarde :
 
 ```bash
-ansible-playbook -i inventory/switches.yml test_backup.yml --ask-vault-pass --ask-become-pass
+ansible-playbook -i inventory/switches.yml test_backup.yml --ask-vault-pass
 ```
 
 #### Option : Sauvegarde locale uniquement (sans sudo)

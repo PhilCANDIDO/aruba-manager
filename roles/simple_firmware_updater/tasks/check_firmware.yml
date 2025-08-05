@@ -7,6 +7,9 @@
     path: "{{ local_firmware_path }}/{{ firmware_filename }}"
   register: local_firmware_stat
   delegate_to: "{{ repository_server }}"
+  vars:
+    ansible_user: "{{ repository_user | default('deploy') }}"
+    ansible_password: "{{ repository_password | default(omit) }}"
   when: firmware_source_type == "local"
   tags:
     - check
