@@ -237,11 +237,10 @@ ansible-playbook update_simple.yml --tags "validate"
 - Arrête si la version cible n'est pas supérieure
 
 ### 4. Sauvegarde (`backup_config.yml`)
-- Tente d'abord une sauvegarde avec `aoscx_backup_config`
-- Si le format n'est pas CLI, utilise l'API REST directement avec Accept: text/plain
+- Sauvegarde la configuration avec `aoscx_backup_config`
 - Sauvegarde localement puis transfère au serveur repository
 - Nomme le fichier avec horodatage
-- Format de sortie visé : texte CLI standard Aruba AOS-CX
+- Format de sortie : JSON (format par défaut du module)
 
 ### 5. Upload du firmware (`upload_firmware.yml`)
 - Upload le firmware sur la partition primary uniquement
@@ -377,21 +376,6 @@ Cette erreur apparaît lors de la connexion SSH au serveur repository avec un mo
    ansible-vault edit group_vars/all/vault.yml
    ```
 
-### Format de sauvegarde en JSON au lieu de CLI
-
-Si les sauvegardes sont en format JSON au lieu du format CLI texte :
-
-1. Le rôle tente d'abord avec `config_type: cli` et `config_json: false`
-2. Si cela échoue, il utilise l'API REST avec `Accept: text/plain`
-3. Si vous obtenez toujours du JSON, vérifiez la version de la collection arubanetworks.aoscx
-
-Pour forcer manuellement le format CLI, vous pouvez utiliser curl :
-```bash
-curl -k -u admin:password \
-  -H "Accept: text/plain" \
-  https://switch-ip/rest/v10.08/fullconfigs/running-config \
-  > config_backup.txt
-```
 
 ### Autres problèmes
 
