@@ -32,7 +32,7 @@
 
 - name: "(compare_versions) Extraire la version du nom du firmware"
   ansible.builtin.set_fact:
-    target_version: "{{ firmware_filename | regex_search('(\\d+)_(\\d+)_(\\d+)(?:_(\\d+))?') | regex_replace('_', '.') }}"
+    target_version: "{{ firmware_filename | regex_search('\\d{4}_(\\d+_\\d+_\\d+(?:_\\d+)?)(?:\\.swi)?$', '\\1') | first | regex_replace('_', '.') }}"
 
 - name: "(compare_versions) Afficher les versions"
   ansible.builtin.debug:

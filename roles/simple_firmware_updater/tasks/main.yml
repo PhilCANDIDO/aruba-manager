@@ -1,12 +1,12 @@
 ---
 # tasks/main.yml - Workflow principal du rôle simple_firmware_updater
 
-- name: "(main) Collecter les facts de date/heure localement"
-  ansible.builtin.setup:
-    gather_subset:
-      - date_time
+- name: "(main) Générer un timestamp pour les noms de fichiers"
+  ansible.builtin.set_fact:
+    global_timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
   delegate_to: localhost
   run_once: true
+  delegate_facts: true
 
 - name: "(main) Vérifier le mode dry-run"
   ansible.builtin.debug:
