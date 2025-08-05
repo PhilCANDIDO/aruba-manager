@@ -34,12 +34,13 @@ Le rôle `simple_firmware_updater` est une version simplifiée du processus de m
 | Variable | Description | Défaut |
 |----------|-------------|---------|
 | `dry_run` | Mode simulation sans modifications | `false` |
+| `force_backup_in_dryrun` | Forcer la sauvegarde même en mode dry-run | `false` |
 | `firmware_source_type` | Type de source du firmware ("local" ou "remote") | `"local"` |
-| `local_firmware_path` | Chemin local où se trouve le firmware | `"/opt/aruba_reports/firmware"` |
+| `local_firmware_path` | Chemin local où se trouve le firmware | `"/firmware/{{ switch_model }}"` |
 | `repository_server` | Serveur de stockage (local ou HTTP) | `"backup.example.com"` |
 | `repository_path` | Chemin sur le serveur repository (pour HTTP) | `"/firmware"` |
 | `backup_enabled` | Activer la sauvegarde de configuration | `true` |
-| `backup_path` | Chemin de sauvegarde | `"/backups"` |
+| `backup_path` | Chemin de sauvegarde | `"/backups/network/aruba/config_backups"` |
 | `upload_timeout` | Timeout pour l'upload (secondes) | `600` |
 | `reboot_timeout` | Timeout pour le redémarrage (secondes) | `900` |
 
@@ -116,6 +117,46 @@ Ou via la ligne de commande :
 ```bash
 # Mode dry-run via extra vars
 ansible-playbook update_simple.yml -e "dry_run=true"
+```
+
+### Sauvegarde de configuration sans mise à jour
+
+**IMPORTANT** : Il est fortement recommandé de tester et valider la sauvegarde avant toute mise à jour firmware.
+
+#### Méthode 1 : Utiliser les tags (recommandé)
+
+```bash
+# Vérifications ET sauvegarde uniquement (sans mise à jour)
+ansible-playbook -i inventory/switches.yml simple_firmware_update.yml \
+  -e "switch_model=6000" \
+  -e "firmware_filename=ArubaOS-CX_6100-6000_10_13_1120.swi" \
+  --tags "check,backup" \
+  --ask-vault-pass
+
+# Sauvegarde uniquement (sans vérifications)
+ansible-playbook -i inventory/switches.yml simple_firmware_update.yml \
+  --tags "backup" \
+  --ask-vault-pass
+```
+
+#### Méthode 2 : Mode dry-run avec sauvegarde forcée
+
+```bash
+# Mode dry-run mais effectue réellement la sauvegarde
+ansible-playbook -i inventory/switches.yml simple_firmware_update.yml \
+  -e "switch_model=6000" \
+  -e "firmware_filename=ArubaOS-CX_6100-6000_10_13_1120.swi" \
+  -e "dry_run=true" \
+  -e "force_backup_in_dryrun=true" \
+  --ask-vault-pass
+```
+
+#### Méthode 3 : Playbook de test dédié
+
+Utilisez le playbook `test_backup.yml` pour tester uniquement la sauvegarde :
+
+```bash
+ansible-playbook -i inventory/switches.yml test_backup.yml --ask-vault-pass
 ```
 
 ### Utilisation avec tags
