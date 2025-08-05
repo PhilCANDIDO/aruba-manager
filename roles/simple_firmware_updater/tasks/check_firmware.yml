@@ -2,21 +2,21 @@
 # tasks/check_firmware.yml - Vérification de l'existence du firmware
 
 # === Vérification pour source locale ===
-- name: "Vérifier l'existence du firmware en local"
+- name: "(check_firmware) Vérifier l'existence du firmware en local"
   ansible.builtin.stat:
     path: "{{ local_firmware_path }}/{{ firmware_filename }}"
   register: local_firmware_stat
   delegate_to: "{{ repository_server }}"
   when: firmware_source_type == "local"
 
-- name: "Échec si le firmware local n'existe pas"
+- name: "(check_firmware) Échec si le firmware local n'existe pas"
   ansible.builtin.fail:
     msg: "{{ msg_firmware_not_found }} - Chemin: {{ local_firmware_path }}/{{ firmware_filename }}"
   when: 
     - firmware_source_type == "local"
     - not (local_firmware_stat.stat.exists | default(false))
 
-- name: "Récupérer les informations du firmware local"
+- name: "(check_firmware) Récupérer les informations du firmware local"
   ansible.builtin.set_fact:
     firmware_size: "{{ local_firmware_stat.stat.size | default(0) }}"
     firmware_size_mb: "{{ (local_firmware_stat.stat.size | default(0) | int / 1024 / 1024) | round(2) }}"
@@ -25,12 +25,12 @@
     - local_firmware_stat.stat.exists | default(false)
 
 # === Vérification pour source distante (HTTP/HTTPS) ===
-- name: "Construire l'URL du firmware"
+- name: "(check_firmware) Construire l'URL du firmware"
   ansible.builtin.set_fact:
     firmware_url: "http://{{ repository_server }}{{ repository_path }}/{{ firmware_filename }}"
   when: firmware_source_type == "remote"
 
-- name: "Vérifier l'existence du firmware sur le serveur HTTP"
+- name: "(check_firmware) Vérifier l'existence du firmware sur le serveur HTTP"
   ansible.builtin.uri:
     url: "{{ firmware_url }}"
     method: HEAD
@@ -41,14 +41,14 @@
   failed_when: false
   when: firmware_source_type == "remote"
 
-- name: "Échec si le firmware distant n'existe pas"
+- name: "(check_firmware) Échec si le firmware distant n'existe pas"
   ansible.builtin.fail:
     msg: "{{ msg_firmware_not_found }} - URL: {{ firmware_url }}"
   when: 
     - firmware_source_type == "remote"
     - firmware_check.status != 200
 
-- name: "Récupérer les informations du firmware distant"
+- name: "(check_firmware) Récupérer les informations du firmware distant"
   ansible.builtin.set_fact:
     firmware_size: "{{ firmware_check.content_length | default(0) }}"
     firmware_size_mb: "{{ (firmware_check.content_length | default(0) | int / 1024 / 1024) | round(2) }}"
@@ -57,7 +57,7 @@
     - firmware_check.status == 200
 
 # === Affichage des informations ===
-- name: "Afficher les informations du firmware"
+- name: "(check_firmware) Afficher les informations du firmware"
   ansible.builtin.debug:
     msg: |
       ✓ Firmware trouvé ({{ firmware_source_type }})

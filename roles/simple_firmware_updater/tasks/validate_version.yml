@@ -1,7 +1,7 @@
 ---
 # tasks/validate_version.yml - Validation de la version après redémarrage
 
-- name: "Récupérer les facts après redémarrage"
+- name: "(validate_version) Récupérer les facts après redémarrage"
   arubanetworks.aoscx.aoscx_facts:
     gather_subset:
       - platform_name
@@ -11,23 +11,23 @@
   retries: 3
   delay: 10
 
-- name: "Extraire la version installée"
+- name: "(validate_version) Extraire la version installée"
   ansible.builtin.set_fact:
     installed_version: "{{ post_reboot_facts.ansible_facts.ansible_net_version }}"
   when: post_reboot_facts.ansible_facts.ansible_net_version is defined
 
-- name: "Sauvegarder la nouvelle version"
+- name: "(validate_version) Sauvegarder la nouvelle version"
   ansible.builtin.set_fact:
     new_version: "{{ installed_version }}"
 
-- name: "Vérifier la correspondance des versions"
+- name: "(validate_version) Vérifier la correspondance des versions"
   ansible.builtin.assert:
     that:
       - installed_version == target_version
     fail_msg: "{{ msg_validation_failed }}"
     success_msg: "{{ msg_validation_success }}"
 
-- name: "Afficher le résumé final avec les informations des partitions"
+- name: "(validate_version) Afficher le résumé final avec les informations des partitions"
   ansible.builtin.debug:
     msg: |
       === VALIDATION RÉUSSIE ===
@@ -37,7 +37,7 @@
       Système: {{ post_reboot_facts.ansible_facts.ansible_net_system | default('N/A') }}
       =========================
 
-- name: "Nettoyer le répertoire temporaire"
+- name: "(validate_version) Nettoyer le répertoire temporaire"
   ansible.builtin.file:
     path: "{{ remote_temp_dir }}"
     state: absent
