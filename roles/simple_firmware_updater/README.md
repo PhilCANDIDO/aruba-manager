@@ -51,6 +51,7 @@ ssh-copy-id deploy@votre-serveur-repository
 |----------|-------------|---------|
 | `dry_run` | Mode simulation sans modifications | `false` |
 | `force_backup_in_dryrun` | Forcer la sauvegarde même en mode dry-run | `false` |
+| `force_update` | Forcer la mise à jour même si version identique/inférieure | `false` |
 | `firmware_source_type` | Type de source du firmware ("local" ou "remote") | `"local"` |
 | `local_firmware_path` | Chemin local où se trouve le firmware | `"/firmware/{{ switch_model }}"` |
 | `repository_server` | Serveur de stockage (local ou HTTP) | `"backup.example.com"` |
@@ -203,6 +204,20 @@ ansible-playbook -i inventory/switches.yml simple_firmware_update.yml \
 
 Les fichiers de sauvegarde seront créés localement sur le contrôleur Ansible et pourront être transférés manuellement ultérieurement.
 
+### Forcer la mise à jour
+
+Pour forcer la mise à jour même si la version est identique ou inférieure :
+
+```bash
+ansible-playbook -i inventory/switches.yml simple_firmware_update.yml \
+  -e "switch_model=6000" \
+  -e "firmware_filename=ArubaOS-CX_6100-6000_10_13_1120.swi" \
+  -e "force_update=true" \
+  --ask-vault-pass
+```
+
+**⚠️ Attention** : Utilisez `force_update=true` avec précaution car cela peut réinstaller une version identique ou même inférieure.
+
 ### Utilisation avec tags
 
 ```bash
@@ -334,6 +349,14 @@ ok: [switch-01] => {
 
 PLAY RECAP *********************************************************************
 switch-01 : ok=5 changed=0 unreachable=0 failed=0 skipped=0 rescued=0 ignored=0
+```
+
+### Force Update
+```
+TASK [simple_firmware_updater : Afficher le message de forçage] ***
+ok: [switch-01] => {
+    "msg": "⚠️ FORCE_UPDATE activé - Mise à jour forcée malgré la version 10.13.1120 → 10.13.1120"
+}
 ```
 
 ### Mode Dry-Run

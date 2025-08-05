@@ -63,13 +63,26 @@
 - name: "(compare_versions) Vérifier si la mise à jour est nécessaire"
   ansible.builtin.debug:
     msg: "{{ msg_version_not_superior }}"
-  when: not version_comparison
+  when: 
+    - not version_comparison
+    - not force_update
+  tags:
+    - check
+
+- name: "(compare_versions) Afficher le message de forçage"
+  ansible.builtin.debug:
+    msg: "⚠️ FORCE_UPDATE activé - Mise à jour forcée malgré la version {{ primary_version }} → {{ target_version }}"
+  when:
+    - not version_comparison
+    - force_update
   tags:
     - check
 
 - name: "(compare_versions) Arrêter si la version n'est pas supérieure"
   ansible.builtin.meta: end_play
-  when: not version_comparison
+  when: 
+    - not version_comparison
+    - not force_update
   tags:
     - check
 

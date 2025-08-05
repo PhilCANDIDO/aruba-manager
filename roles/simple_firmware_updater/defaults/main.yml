@@ -25,6 +25,9 @@ backup_filename: "{{ hostvars['localhost']['global_timestamp'] | default('manual
 dry_run: false
 force_backup_in_dryrun: false  # Forcer la sauvegarde même en mode dry-run
 
+# Forcer la mise à jour
+force_update: false  # Forcer la mise à jour même si la version est identique ou inférieure
+
 # Mode de sauvegarde
 backup_requires_sudo: true  # Si false, sauvegarde locale uniquement sans transfert
 
