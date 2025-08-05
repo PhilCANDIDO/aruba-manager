@@ -8,6 +8,8 @@
   register: local_firmware_stat
   delegate_to: "{{ repository_server }}"
   when: firmware_source_type == "local"
+  tags:
+    - check
 
 - name: "(check_firmware) Échec si le firmware local n'existe pas"
   ansible.builtin.fail:
@@ -15,6 +17,8 @@
   when: 
     - firmware_source_type == "local"
     - not (local_firmware_stat.stat.exists | default(false))
+  tags:
+    - check
 
 - name: "(check_firmware) Récupérer les informations du firmware local"
   ansible.builtin.set_fact:
@@ -23,12 +27,16 @@
   when: 
     - firmware_source_type == "local"
     - local_firmware_stat.stat.exists | default(false)
+  tags:
+    - check
 
 # === Vérification pour source distante (HTTP/HTTPS) ===
 - name: "(check_firmware) Construire l'URL du firmware"
   ansible.builtin.set_fact:
     firmware_url: "http://{{ repository_server }}{{ repository_path }}/{{ firmware_filename }}"
   when: firmware_source_type == "remote"
+  tags:
+    - check
 
 - name: "(check_firmware) Vérifier l'existence du firmware sur le serveur HTTP"
   ansible.builtin.uri:
@@ -40,6 +48,8 @@
   register: firmware_check
   failed_when: false
   when: firmware_source_type == "remote"
+  tags:
+    - check
 
 - name: "(check_firmware) Échec si le firmware distant n'existe pas"
   ansible.builtin.fail:
@@ -47,6 +57,8 @@
   when: 
     - firmware_source_type == "remote"
     - firmware_check.status != 200
+  tags:
+    - check
 
 - name: "(check_firmware) Récupérer les informations du firmware distant"
   ansible.builtin.set_fact:
@@ -55,6 +67,8 @@
   when: 
     - firmware_source_type == "remote"
     - firmware_check.status == 200
+  tags:
+    - check
 
 # === Affichage des informations ===
 - name: "(check_firmware) Afficher les informations du firmware"
@@ -68,3 +82,5 @@
       {% else %}
       URL: {{ firmware_url }}
       {% endif %}
+  tags:
+    - check

@@ -7,6 +7,8 @@
   delegate_to: localhost
   run_once: true
   delegate_facts: true
+  tags:
+    - always
 
 - name: "(main) Vérifier le mode dry-run"
   ansible.builtin.debug:
@@ -42,8 +44,9 @@
     - check
 
 # Étape 4: Sauvegarde de configuration
-- name: "(main) 4. Sauvegarde de la configuration"
-  include_tasks: backup_config.yml
+- block:
+    - name: "(main) 4. Sauvegarde de la configuration"
+      include_tasks: backup_config.yml
   when: backup_enabled | default(true)
   tags:
     - backup

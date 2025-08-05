@@ -7,10 +7,14 @@
       - platform_name
       - product_info
   register: switch_facts
+  tags:
+    - check
 
 - name: "(check_model) Initialiser detected_model avec une valeur par défaut"
   ansible.builtin.set_fact:
     detected_model: "unknown"
+  tags:
+    - check
 
 - name: "(check_model) Extraire le modèle depuis ansible_net_model"
   ansible.builtin.set_fact:
@@ -18,6 +22,8 @@
   when: 
     - switch_facts.ansible_facts.ansible_net_model is defined
     - switch_facts.ansible_facts.ansible_net_model | regex_search('(\\d{4})')
+  tags:
+    - check
 
 - name: "(check_model) Essayer d'extraire le modèle depuis ansible_net_platform_name"
   ansible.builtin.set_fact:
@@ -25,6 +31,8 @@
   when: 
     - detected_model == "unknown"
     - switch_facts.ansible_facts.ansible_net_platform_name is defined
+  tags:
+    - check
 
 - name: "(check_model) Essayer d'extraire le modèle depuis product_info"
   ansible.builtin.set_fact:
@@ -34,20 +42,28 @@
     - switch_facts.ansible_facts.ansible_net_product_info is defined
     - switch_facts.ansible_facts.ansible_net_product_info.product_model is defined
     - switch_facts.ansible_facts.ansible_net_product_info.product_model | regex_search('(\\d{4})')
+  tags:
+    - check
 
 - name: "(check_model) Gérer le cas où le modèle n'est pas trouvé"
   ansible.builtin.fail:
     msg: "ERREUR: Impossible de déterminer le modèle du switch. Facts disponibles: {{ switch_facts.ansible_facts.keys() | list }}"
   when: detected_model == 'unknown'
+  tags:
+    - check
 
 - name: "(check_model) Afficher le modèle détecté"
   ansible.builtin.debug:
     msg: "Modèle détecté: {{ detected_model }}"
+  tags:
+    - check
 
 - name: "(check_model) Vérifier la correspondance du modèle"
   ansible.builtin.fail:
     msg: "{{ msg_model_mismatch }}"
   when: detected_model != switch_model
+  tags:
+    - check
 
 - name: "(check_model) Confirmer la correspondance du modèle"
   ansible.builtin.debug:

@@ -1,34 +1,65 @@
 ---
 # tasks/backup_config.yml - Sauvegarde simplifiée de la configuration
 
+- name: "(backup_config) Définir les variables nécessaires"
+  ansible.builtin.set_fact:
+    backup_filename: "{{ backup_filename | default('config_backup_' + inventory_hostname + '_' + (hostvars['localhost']['global_timestamp'] | default('manual')) + '.cfg') }}"
+    remote_temp_dir: "{{ remote_temp_dir | default('/tmp/ansible_simple_firmware') }}"
+    repository_server: "{{ repository_server | default(hostvars[inventory_hostname]['repository_server'] | default('s-ansible-1')) }}"
+  tags:
+    - backup
+
 - name: "(backup_config) Créer le répertoire temporaire local"
   ansible.builtin.file:
     path: "{{ remote_temp_dir }}"
     state: directory
     mode: '0755'
   delegate_to: localhost
+  tags:
+    - backup
+
+- name: "(backup_config) Afficher le répertoire de travail actuel"
+  ansible.builtin.debug:
+    msg: "Répertoire de travail: {{ lookup('env', 'PWD') }}"
+  delegate_to: localhost
+  tags:
+    - backup
 
 - name: "(backup_config) Sauvegarder la configuration avec aoscx_backup_config"
   arubanetworks.aoscx.aoscx_backup_config:
     config_name: "running-config"
-    output_file: "{{ remote_temp_dir }}/{{ backup_filename }}"
+    output_file: "{{ backup_filename }}"
   register: backup_result
+  tags:
+    - backup
+
+- name: "(backup_config) Afficher le résultat de la sauvegarde"
+  ansible.builtin.debug:
+    var: backup_result
+  tags:
+    - backup
 
 - name: "(backup_config) Vérifier que la sauvegarde a réussi"
   ansible.builtin.debug:
     msg: "✓ Configuration sauvegardée avec succès"
   when: backup_result is succeeded
+  tags:
+    - backup
 
 - name: "(backup_config) Vérifier la sauvegarde locale"
   ansible.builtin.stat:
-    path: "{{ remote_temp_dir }}/{{ backup_filename }}"
+    path: "{{ backup_filename }}"
   register: backup_stat
   delegate_to: localhost
+  tags:
+    - backup
 
 - name: "(backup_config) Afficher la taille du fichier de sauvegarde"
   ansible.builtin.debug:
     msg: "Fichier de sauvegarde créé: {{ backup_stat.stat.size | default(0) }} bytes"
   when: backup_stat.stat.exists | default(false)
+  tags:
+    - backup
 
 - name: "(backup_config) Créer le répertoire de sauvegarde sur le serveur repository"
   ansible.builtin.file:
@@ -40,10 +71,12 @@
   when: 
     - repository_server | length > 0
     - not (dry_run | bool)
+  tags:
+    - backup
 
 - name: "(backup_config) Transférer la sauvegarde vers le serveur repository"
   ansible.builtin.copy:
-    src: "{{ remote_temp_dir }}/{{ backup_filename }}"
+    src: "{{ backup_filename }}"
     dest: "{{ backup_path }}/{{ inventory_hostname }}/{{ backup_filename }}"
     mode: '0644'
   delegate_to: "{{ repository_server }}"
@@ -52,6 +85,8 @@
     - repository_server | length > 0
     - (not (dry_run | bool) or force_backup_in_dryrun | bool)
     - backup_stat.stat.exists | default(false)
+  tags:
+    - backup
 
 - name: "(backup_config) [DRY-RUN] Simuler le transfert de la sauvegarde"
   ansible.builtin.debug:
@@ -60,6 +95,8 @@
     - repository_server | length > 0
     - dry_run | bool
     - not (force_backup_in_dryrun | bool)
+  tags:
+    - backup
 
 - name: "(backup_config) Créer le fichier de métadonnées"
   ansible.builtin.copy:
@@ -71,14 +108,16 @@
         "firmware_version": "{{ primary_version | default('unknown') }}",
         "backup_size": {{ backup_stat.stat.size | default(0) }}
       }
-    dest: "{{ remote_temp_dir }}/{{ backup_filename }}.metadata.json"
+    dest: "{{ backup_filename }}.metadata.json"
     mode: '0644'
   delegate_to: localhost
   when: backup_stat.stat.exists | default(false)
+  tags:
+    - backup
 
 - name: "(backup_config) Transférer les métadonnées vers le serveur repository"
   ansible.builtin.copy:
-    src: "{{ remote_temp_dir }}/{{ backup_filename }}.metadata.json"
+    src: "{{ backup_filename }}.metadata.json"
     dest: "{{ backup_path }}/{{ inventory_hostname }}/{{ backup_filename }}.metadata.json"
     mode: '0644'
   delegate_to: "{{ repository_server }}"
@@ -87,6 +126,8 @@
     - repository_server | length > 0
     - (not (dry_run | bool) or force_backup_in_dryrun | bool)
     - backup_stat.stat.exists | default(false)
+  tags:
+    - backup
 
 - name: "(backup_config) Afficher le résumé de la sauvegarde"
   ansible.builtin.debug:
@@ -94,3 +135,5 @@
       {{ msg_backup_success }}
       Taille: {{ backup_stat.stat.size | default(0) }} bytes
       Emplacement: {{ repository_server }}:{{ backup_path }}/{{ inventory_hostname }}/{{ backup_filename }}
+  tags:
+    - backup
