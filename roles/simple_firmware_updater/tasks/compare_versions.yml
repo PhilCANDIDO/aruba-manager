@@ -5,6 +5,7 @@
   arubanetworks.aoscx.aoscx_facts:
     gather_subset:
       - software_images
+      - software_version
   register: images_facts
 
 - name: "Débugger les facts récupérés"
