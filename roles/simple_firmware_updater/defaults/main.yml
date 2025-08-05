@@ -19,7 +19,7 @@ repository_user: "{{ hostvars[inventory_hostname]['repository_user'] | default('
 # Configuration de sauvegarde
 backup_enabled: true
 backup_path: "/backups/network/aruba/config_backups"
-backup_filename: "{{ inventory_hostname }}_{{ ansible_date_time.date }}_{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}.cfg"
+backup_filename: "{{ inventory_hostname }}_{{ hostvars['localhost']['ansible_date_time']['date'] }}_{{ hostvars['localhost']['ansible_date_time']['hour'] }}{{ hostvars['localhost']['ansible_date_time']['minute'] }}.cfg"
 
 # Mode dry-run
 dry_run: false

@@ -1,6 +1,13 @@
 ---
 # tasks/main.yml - Workflow principal du rôle simple_firmware_updater
 
+- name: "(main) Collecter les facts de date/heure localement"
+  ansible.builtin.setup:
+    gather_subset:
+      - date_time
+  delegate_to: localhost
+  run_once: true
+
 - name: "(main) Vérifier le mode dry-run"
   ansible.builtin.debug:
     msg: "{{ msg_dryrun_mode }}"
