@@ -1,15 +1,28 @@
 ---
 # tasks/compare_versions.yml - Comparaison des versions firmware
 
-- name: "Récupérer la version actuelle de la partition primary"
-  arubanetworks.aoscx.aoscx_command:
-    commands:
-      - "show images"
-  register: images_output
+- name: "Récupérer les informations sur les images installées"
+  arubanetworks.aoscx.aoscx_facts:
+    gather_subset:
+      - software_images
+  register: images_facts
 
-- name: "Parser la sortie des images"
+- name: "Débugger les facts récupérés"
+  ansible.builtin.debug:
+    var: images_facts.ansible_facts
+  when: dry_run | bool
+
+- name: "Extraire la version de la partition primary"
   ansible.builtin.set_fact:
-    primary_version: "{{ images_output.stdout[0] | regex_search('primary\\s+:\\s+ArubaOS-CX.*?(\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)', '\\1') | first | default('0.0.0') }}"
+    primary_version: "{{ images_facts.ansible_facts.ansible_net_software_images.primary.version | default('0.0.0') }}"
+  when: images_facts.ansible_facts.ansible_net_software_images is defined
+
+- name: "Gérer le cas où les images ne sont pas disponibles"
+  ansible.builtin.set_fact:
+    primary_version: "{{ images_facts.ansible_facts.ansible_net_version | default('0.0.0') }}"
+  when: 
+    - images_facts.ansible_facts.ansible_net_software_images is not defined
+    - images_facts.ansible_facts.ansible_net_version is defined
 
 - name: "Extraire la version du nom du firmware"
   ansible.builtin.set_fact:

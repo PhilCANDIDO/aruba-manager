@@ -8,24 +8,23 @@
     mode: '0755'
   delegate_to: localhost
 
-- name: "Récupérer la configuration actuelle"
-  arubanetworks.aoscx.aoscx_command:
-    commands:
-      - "show running-config"
-  register: running_config
-
-- name: "Sauvegarder la configuration localement"
-  ansible.builtin.copy:
-    content: "{{ running_config.stdout[0] }}"
-    dest: "{{ remote_temp_dir }}/{{ backup_filename }}"
-    mode: '0644'
-  delegate_to: localhost
+- name: "Sauvegarder la configuration via l'API"
+  arubanetworks.aoscx.aoscx_config:
+    backup: yes
+    backup_options:
+      filename: "{{ remote_temp_dir }}/{{ backup_filename }}"
+  register: backup_result
 
 - name: "Vérifier la sauvegarde locale"
   ansible.builtin.stat:
     path: "{{ remote_temp_dir }}/{{ backup_filename }}"
   register: backup_stat
   delegate_to: localhost
+
+- name: "Afficher la taille du fichier de sauvegarde"
+  ansible.builtin.debug:
+    msg: "Fichier de sauvegarde créé: {{ backup_stat.stat.size | default(0) }} bytes"
+  when: backup_stat.stat.exists | default(false)
 
 - name: "Transférer la sauvegarde vers le serveur repository"
   ansible.builtin.copy:
@@ -37,6 +36,7 @@
   when: 
     - repository_server | length > 0
     - not (dry_run | bool)
+    - backup_stat.stat.exists | default(false)
 
 - name: "[DRY-RUN] Simuler le transfert de la sauvegarde"
   ansible.builtin.debug:
@@ -49,5 +49,5 @@
   ansible.builtin.debug:
     msg: |
       {{ msg_backup_success }}
-      Taille: {{ backup_stat.stat.size }} bytes
+      Taille: {{ backup_stat.stat.size | default(0) }} bytes
       Emplacement: {{ repository_server }}:{{ backup_path }}/{{ backup_filename }}

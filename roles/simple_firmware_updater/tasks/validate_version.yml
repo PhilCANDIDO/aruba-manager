@@ -1,17 +1,19 @@
 ---
 # tasks/validate_version.yml - Validation de la version après redémarrage
 
-- name: "Récupérer la version actuelle après redémarrage"
-  arubanetworks.aoscx.aoscx_command:
-    commands:
-      - "show version | include Version"
-  register: version_after_reboot
+- name: "Récupérer les facts après redémarrage"
+  arubanetworks.aoscx.aoscx_facts:
+    gather_subset:
+      - platform
+      - software_images
+  register: post_reboot_facts
   retries: 3
   delay: 10
 
 - name: "Extraire la version installée"
   ansible.builtin.set_fact:
-    installed_version: "{{ version_after_reboot.stdout[0] | regex_search('Version\\s+:\\s+.*?(\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)', '\\1') | first }}"
+    installed_version: "{{ post_reboot_facts.ansible_facts.ansible_net_version }}"
+  when: post_reboot_facts.ansible_facts.ansible_net_version is defined
 
 - name: "Sauvegarder la nouvelle version"
   ansible.builtin.set_fact:
@@ -24,20 +26,14 @@
     fail_msg: "{{ msg_validation_failed }}"
     success_msg: "{{ msg_validation_success }}"
 
-- name: "Récupérer l'état des partitions"
-  arubanetworks.aoscx.aoscx_command:
-    commands:
-      - "show images"
-  register: final_images_state
-
-- name: "Afficher le résumé final"
+- name: "Afficher le résumé final avec les informations des partitions"
   ansible.builtin.debug:
     msg: |
       === VALIDATION RÉUSSIE ===
       Version précédente: {{ primary_version }}
       Version installée: {{ installed_version }}
-      État des partitions:
-      {{ final_images_state.stdout[0] }}
+      Modèle: {{ post_reboot_facts.ansible_facts.ansible_net_model | default('N/A') }}
+      Système: {{ post_reboot_facts.ansible_facts.ansible_net_system | default('N/A') }}
       =========================
 
 - name: "Nettoyer le répertoire temporaire"
