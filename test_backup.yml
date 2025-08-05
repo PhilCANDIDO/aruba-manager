@@ -1,0 +1,51 @@
+---
+# test_backup.yml - Playbook pour tester uniquement la sauvegarde des configurations
+
+- name: Test de sauvegarde des configurations Aruba AOS-CX
+  hosts: switches_aruba
+  gather_facts: no
+  
+  vars:
+    # Réutiliser les variables du rôle
+    remote_temp_dir: "/tmp/ansible_simple_firmware"
+    backup_path: "/backups/network/aruba/config_backups"
+    
+  tasks:
+    - name: "Générer un timestamp pour les noms de fichiers"
+      ansible.builtin.set_fact:
+        global_timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+      delegate_to: localhost
+      run_once: true
+      delegate_facts: true
+
+    - name: "Définir le nom du fichier de sauvegarde"
+      ansible.builtin.set_fact:
+        backup_filename: "config_backup_{{ inventory_hostname }}_{{ hostvars['localhost']['global_timestamp'] }}_TEST.cfg"
+
+    - name: "Inclure les tâches de sauvegarde"
+      include_role:
+        name: simple_firmware_updater
+        tasks_from: backup_config.yml
+
+    - name: "Vérifier la sauvegarde sur le serveur repository"
+      ansible.builtin.stat:
+        path: "{{ backup_path }}/{{ inventory_hostname }}/{{ backup_filename }}"
+      register: remote_backup_stat
+      delegate_to: "{{ repository_server }}"
+      become: true
+
+    - name: "Afficher le résultat du test"
+      ansible.builtin.debug:
+        msg: |
+          === RÉSULTAT DU TEST DE SAUVEGARDE ===
+          Switch: {{ inventory_hostname }}
+          Fichier local créé: {{ backup_stat.stat.exists | default(false) | ternary('✓', '✗') }}
+          Fichier transféré: {{ remote_backup_stat.stat.exists | default(false) | ternary('✓', '✗') }}
+          {% if remote_backup_stat.stat.exists | default(false) %}
+          Chemin: {{ repository_server }}:{{ backup_path }}/{{ inventory_hostname }}/{{ backup_filename }}
+          Taille: {{ remote_backup_stat.stat.size }} bytes
+          {% endif %}
+          =====================================
+
+# Utilisation:
+# ansible-playbook -i inventory/switches.yml test_backup.yml --ask-vault-pass

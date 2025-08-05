@@ -23,6 +23,7 @@ backup_filename: "config_backup_{{ inventory_hostname }}_{{ hostvars['localhost'
 
 # Mode dry-run
 dry_run: false
+force_backup_in_dryrun: false  # Forcer la sauvegarde même en mode dry-run
 
 # Timeouts
 upload_timeout: 600  # 10 minutes

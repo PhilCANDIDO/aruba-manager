@@ -50,7 +50,7 @@
   become: true
   when: 
     - repository_server | length > 0
-    - not (dry_run | bool)
+    - (not (dry_run | bool) or force_backup_in_dryrun | bool)
     - backup_stat.stat.exists | default(false)
 
 - name: "(backup_config) [DRY-RUN] Simuler le transfert de la sauvegarde"
@@ -59,6 +59,7 @@
   when:
     - repository_server | length > 0
     - dry_run | bool
+    - not (force_backup_in_dryrun | bool)
 
 - name: "(backup_config) Créer le fichier de métadonnées"
   ansible.builtin.copy:
@@ -84,7 +85,7 @@
   become: true
   when: 
     - repository_server | length > 0
-    - not (dry_run | bool)
+    - (not (dry_run | bool) or force_backup_in_dryrun | bool)
     - backup_stat.stat.exists | default(false)
 
 - name: "(backup_config) Afficher le résumé de la sauvegarde"
