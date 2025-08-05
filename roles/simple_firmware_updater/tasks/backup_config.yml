@@ -30,10 +30,21 @@
     msg: "Fichier de sauvegarde créé: {{ backup_stat.stat.size | default(0) }} bytes"
   when: backup_stat.stat.exists | default(false)
 
+- name: "(backup_config) Créer le répertoire de sauvegarde sur le serveur repository"
+  ansible.builtin.file:
+    path: "{{ backup_path }}/{{ inventory_hostname }}"
+    state: directory
+    mode: '0755'
+  delegate_to: "{{ repository_server }}"
+  become: true
+  when: 
+    - repository_server | length > 0
+    - not (dry_run | bool)
+
 - name: "(backup_config) Transférer la sauvegarde vers le serveur repository"
   ansible.builtin.copy:
     src: "{{ remote_temp_dir }}/{{ backup_filename }}"
-    dest: "{{ backup_path }}/{{ backup_filename }}"
+    dest: "{{ backup_path }}/{{ inventory_hostname }}/{{ backup_filename }}"
     mode: '0644'
   delegate_to: "{{ repository_server }}"
   become: true
@@ -44,7 +55,7 @@
 
 - name: "(backup_config) [DRY-RUN] Simuler le transfert de la sauvegarde"
   ansible.builtin.debug:
-    msg: "{{ msg_dryrun_skip }} - Transfert de {{ backup_filename }} vers {{ repository_server }}:{{ backup_path }}"
+    msg: "{{ msg_dryrun_skip }} - Transfert de {{ backup_filename }} vers {{ repository_server }}:{{ backup_path }}/{{ inventory_hostname }}/"
   when:
     - repository_server | length > 0
     - dry_run | bool
@@ -67,7 +78,7 @@
 - name: "(backup_config) Transférer les métadonnées vers le serveur repository"
   ansible.builtin.copy:
     src: "{{ remote_temp_dir }}/{{ backup_filename }}.metadata.json"
-    dest: "{{ backup_path }}/{{ backup_filename }}.metadata.json"
+    dest: "{{ backup_path }}/{{ inventory_hostname }}/{{ backup_filename }}.metadata.json"
     mode: '0644'
   delegate_to: "{{ repository_server }}"
   become: true
@@ -81,4 +92,4 @@
     msg: |
       {{ msg_backup_success }}
       Taille: {{ backup_stat.stat.size | default(0) }} bytes
-      Emplacement: {{ repository_server }}:{{ backup_path }}/{{ backup_filename }}
+      Emplacement: {{ repository_server }}:{{ backup_path }}/{{ inventory_hostname }}/{{ backup_filename }}
