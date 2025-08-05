@@ -28,13 +28,12 @@
     - switch_facts.ansible_facts.ansible_net_model is defined
     - switch_facts.ansible_facts.ansible_net_model | regex_search('(\\d{4})')
 
-- name: "Essayer d'extraire le modèle depuis ansible_net_platform"
+- name: "Essayer d'extraire le modèle depuis ansible_net_platform_name"
   ansible.builtin.set_fact:
-    detected_model: "{{ switch_facts.ansible_facts.ansible_net_platform | regex_search('(\\d{4})', '\\1') | first }}"
+    detected_model: "{{ switch_facts.ansible_facts.ansible_net_platform_name }}"
   when: 
     - detected_model == "unknown"
-    - switch_facts.ansible_facts.ansible_net_platform is defined
-    - switch_facts.ansible_facts.ansible_net_platform | regex_search('(\\d{4})')
+    - switch_facts.ansible_facts.ansible_net_platform_name is defined
 
 - name: "Essayer d'extraire le modèle depuis product_info"
   ansible.builtin.set_fact:
