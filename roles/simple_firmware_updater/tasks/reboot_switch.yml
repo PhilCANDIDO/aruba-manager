@@ -23,12 +23,9 @@
     host: "{{ ansible_host }}"
     port: 443
     state: started
-    timeout: 30
+    delay: 60
+    timeout: "{{ reboot_timeout }}"
   delegate_to: localhost
-  retries: 15
-  delay: 60
-  register: port_result
-  until: port_result is success
 
 - name: "(reboot_switch) Calculer la durée du redémarrage"
   ansible.builtin.set_fact:

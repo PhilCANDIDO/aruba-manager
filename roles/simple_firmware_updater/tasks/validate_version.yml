@@ -12,6 +12,10 @@
   delay: 30
   until: post_reboot_facts is not failed
 
+- name: debug post_reboot_facts
+  ansible.builtin.debug:
+    var: post_reboot_facts.ansible_facts
+
 - name: "(validate_version) Extraire la version installée"
   ansible.builtin.set_fact:
     installed_version: "{{ post_reboot_facts.ansible_facts.ansible_net_version }}"
