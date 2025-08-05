@@ -29,6 +29,7 @@
   arubanetworks.aoscx.aoscx_backup_config:
     config_name: "running-config"
     output_file: "{{ backup_filename }}"
+    config_type: cli
   register: backup_result
   tags:
     - backup
