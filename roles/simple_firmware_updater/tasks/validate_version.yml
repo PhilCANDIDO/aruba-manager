@@ -8,8 +8,9 @@
       - software_version
       - software_images
   register: post_reboot_facts
-  retries: 3
-  delay: 10
+  retries: 5
+  delay: 30
+  until: post_reboot_facts is not failed
 
 - name: "(validate_version) Extraire la version installée"
   ansible.builtin.set_fact:
@@ -29,13 +30,13 @@
 
 - name: "(validate_version) Afficher le résumé final avec les informations des partitions"
   ansible.builtin.debug:
-    msg: |
-      === VALIDATION RÉUSSIE ===
-      Version précédente: {{ primary_version }}
-      Version installée: {{ installed_version }}
-      Modèle: {{ post_reboot_facts.ansible_facts.ansible_net_model | default('N/A') }}
-      Système: {{ post_reboot_facts.ansible_facts.ansible_net_system | default('N/A') }}
-      =========================
+    msg: 
+      - "=== VALIDATION RÉUSSIE ==="
+      - "Version précédente: {{ primary_version }}"
+      - "Version installée: {{ installed_version }}"
+      - "Modèle: {{ post_reboot_facts.ansible_facts.ansible_net_model | default('N/A') }}"
+      - "Système: {{ post_reboot_facts.ansible_facts.ansible_net_system | default('N/A') }}"
+      - "========================="
 
 - name: "(validate_version) Nettoyer le répertoire temporaire"
   ansible.builtin.file:

@@ -18,14 +18,17 @@
   ansible.builtin.debug:
     var: boot_result
 
-- name: "(reboot_switch) Attendre que le switch redémarre"
+- name: "(reboot_switch) Attendre que le switch redémarre (test du port 443)"
   ansible.builtin.wait_for:
     host: "{{ ansible_host }}"
-    port: 22
+    port: 443
     state: started
-    delay: 60
-    timeout: "{{ reboot_timeout }}"
+    timeout: 30
   delegate_to: localhost
+  retries: 15
+  delay: 60
+  register: port_result
+  until: port_result is success
 
 - name: "(reboot_switch) Calculer la durée du redémarrage"
   ansible.builtin.set_fact:
