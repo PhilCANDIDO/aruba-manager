@@ -18,14 +18,23 @@
   ansible.builtin.debug:
     var: boot_result
 
-- name: "(reboot_switch) Attendre que le switch redémarre (test du port 443)"
-  ansible.builtin.wait_for:
-    host: "{{ ansible_host }}"
-    port: 443
-    state: started
-    delay: 60
-    timeout: "{{ reboot_timeout }}"
+- name: "(reboot_switch) Attendre 1 minute avant de tester l'API"
+  ansible.builtin.pause:
+    seconds: 60
+    prompt: "Attente initiale avant de tester l'API REST..."
+
+- name: "(reboot_switch) Attendre que le switch redémarre (test HTTPS avec code 200)"
+  ansible.builtin.uri:
+    url: "https://{{ ansible_host }}"
+    method: GET
+    validate_certs: false
+    status_code: 200
+    timeout: 30
   delegate_to: localhost
+  register: api_result
+  until: api_result.status == 200
+  retries: 15
+  delay: 60
 
 - name: "(reboot_switch) Calculer la durée du redémarrage"
   ansible.builtin.set_fact:
