@@ -36,13 +36,13 @@
 
     - name: Afficher les paramètres de mise à jour
       ansible.builtin.debug:
-        msg: |
-          === PARAMÈTRES DE MISE À JOUR ===
-          Hosts ciblés: {{ ansible_play_hosts | length }} switch(es)
-          Modèle attendu: {{ switch_model }}
-          Firmware: {{ firmware_filename }}
-          Repository: {{ repository_server }}:{{ local_firmware_path }}
-          ================================
+        msg: 
+          - "=== PARAMÈTRES DE MISE À JOUR ==="
+          - "Hosts ciblés: {{ ansible_play_hosts | length }} switch(es)"
+          - "Modèle attendu: {{ switch_model }}"
+          - "Firmware: {{ firmware_filename }}"
+          - "Repository: {{ repository_server }}:{{ local_firmware_path }}"
+          - "================================"
       run_once: true
       tags:
         - always
@@ -53,12 +53,12 @@
   post_tasks:
     - name: Générer un résumé de l'exécution
       ansible.builtin.debug:
-        msg: |
-          === RÉSUMÉ DE L'EXÉCUTION ===
-          Total des hosts: {{ ansible_play_hosts | length }}
-          Hosts mis à jour: {{ ansible_play_hosts_all | difference(ansible_failed_hosts | default([])) | length }}
-          Hosts en échec: {{ ansible_failed_hosts | default([]) | length }}
-          =============================
+        msg: 
+          - "=== RÉSUMÉ DE L'EXÉCUTION ==="
+          - "Total des hosts: {{ ansible_play_hosts | length }}"
+          - "Hosts mis à jour: {{ ansible_play_hosts_all | difference(ansible_failed_hosts | default([])) | length }}"
+          - "Hosts en échec: {{ ansible_failed_hosts | default([]) | length }}"
+          - "============================="
       run_once: true
       tags:
         - always

@@ -25,6 +25,9 @@ backup_filename: "config_backup_{{ inventory_hostname }}_{{ hostvars['localhost'
 dry_run: false
 force_backup_in_dryrun: false  # Forcer la sauvegarde même en mode dry-run
 
+# Mode de sauvegarde
+backup_requires_sudo: true  # Si false, sauvegarde locale uniquement sans transfert
+
 # Timeouts
 upload_timeout: 600  # 10 minutes
 reboot_timeout: 900  # 15 minutes

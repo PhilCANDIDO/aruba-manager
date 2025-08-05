@@ -48,9 +48,9 @@
 
 - name: "(compare_versions) Afficher les versions"
   ansible.builtin.debug:
-    msg: |
-      Version actuelle (primary): {{ primary_version }}
-      Version cible: {{ target_version }}
+    msg: 
+      - "Version actuelle (primary): {{ primary_version }}"
+      - "Version cible: {{ target_version }}"
   tags:
     - check
 

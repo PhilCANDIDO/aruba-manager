@@ -70,7 +70,7 @@
   become: true
   when: 
     - repository_server | length > 0
-    - not (dry_run | bool)
+    - not (dry_run | default(false) | bool)
   tags:
     - backup
 
@@ -83,7 +83,7 @@
   become: true
   when: 
     - repository_server | length > 0
-    - (not (dry_run | bool) or force_backup_in_dryrun | bool)
+    - (not (dry_run | default(false) | bool) or (force_backup_in_dryrun | default(false) | bool))
     - backup_stat.stat.exists | default(false)
   tags:
     - backup
@@ -93,8 +93,8 @@
     msg: "{{ msg_dryrun_skip }} - Transfert de {{ backup_filename }} vers {{ repository_server }}:{{ backup_path }}/{{ inventory_hostname }}/"
   when:
     - repository_server | length > 0
-    - dry_run | bool
-    - not (force_backup_in_dryrun | bool)
+    - dry_run | default(false) | bool
+    - not (force_backup_in_dryrun | default(false) | bool)
   tags:
     - backup
 
@@ -124,7 +124,7 @@
   become: true
   when: 
     - repository_server | length > 0
-    - (not (dry_run | bool) or force_backup_in_dryrun | bool)
+    - (not (dry_run | default(false) | bool) or (force_backup_in_dryrun | default(false) | bool))
     - backup_stat.stat.exists | default(false)
   tags:
     - backup
