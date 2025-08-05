@@ -71,13 +71,24 @@
     - check
 
 # === Affichage des informations ===
-- name: "(check_firmware) Afficher les informations du firmware"
+- name: "(check_firmware) Afficher les informations du firmware (source locale)"
   ansible.builtin.debug:
     msg: 
       - "✓ Firmware trouvé ({{ firmware_source_type }})"
       - "Fichier: {{ firmware_filename }}"
       - "Taille: {{ firmware_size_mb }} MB"
       - "Emplacement: {{ repository_server }}:{{ local_firmware_path }}/{{ firmware_filename }}"
+  when: firmware_source_type == "local"
+  tags:
+    - check
+
+- name: "(check_firmware) Afficher les informations du firmware (source distante)"
+  ansible.builtin.debug:
+    msg: 
+      - "✓ Firmware trouvé ({{ firmware_source_type }})"
+      - "Fichier: {{ firmware_filename }}"
+      - "Taille: {{ firmware_size_mb }} MB"
       - "URL: {{ firmware_url }}"
+  when: firmware_source_type == "remote"
   tags:
     - check
