@@ -13,8 +13,9 @@
     # Variables optionnelles (peuvent être surchargées)
     # Le repository_server est défini dans l'inventaire comme 's-ansible-1'
     # repository_server est déjà défini dans l'inventaire
-    repository_path: "/opt/aruba_reports/firmware"
-    backup_path: "/opt/aruba_reports/backups"
+    firmware_source_type: "local"
+    local_firmware_path: "/firmware/{{ switch_model }}"
+    backup_path: "/backups/network/aruba/config_backups"
     
   pre_tasks:
     - name: Vérifier que les variables requises sont définies
@@ -40,7 +41,7 @@
           Hosts ciblés: {{ ansible_play_hosts | length }} switch(es)
           Modèle attendu: {{ switch_model }}
           Firmware: {{ firmware_filename }}
-          Repository: {{ repository_server }}{{ repository_path }}
+          Repository: {{ repository_server }}:{{ local_firmware_path }}
           ================================
       run_once: true
       tags:
@@ -63,8 +64,8 @@
         - always
 
 # Exemple d'utilisation:
-# ansible-playbook -i environments/prod/hosts simple_firmware_update.yml \
-#   -e "switch_model=6100" \
+# ansible-playbook -i inventory/switches.yml simple_firmware_update.yml \
+#   -e "switch_model=6000" \
 #   -e "firmware_filename=ArubaOS-CX_6100-6000_10_13_1120.swi"
 
 # Avec limitation à certains hosts:

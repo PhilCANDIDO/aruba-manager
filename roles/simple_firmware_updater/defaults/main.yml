@@ -9,7 +9,7 @@ firmware_filename: ""
 firmware_source_type: "local"  # Options: "local" ou "remote"
 
 # Configuration pour source locale
-local_firmware_path: "/opt/aruba_reports/firmware"  # Chemin local où se trouve le firmware
+local_firmware_path: "/firmware/{{ switch_model | default('6000') }}"  # Chemin local où se trouve le firmware
 
 # Configuration pour source distante (HTTP/HTTPS)
 repository_server: "{{ hostvars[inventory_hostname]['repository_server'] | default('backup.example.com') }}"
@@ -18,7 +18,7 @@ repository_user: "{{ hostvars[inventory_hostname]['repository_user'] | default('
 
 # Configuration de sauvegarde
 backup_enabled: true
-backup_path: "/backups"
+backup_path: "/backups/network/aruba/config_backups"
 backup_filename: "{{ inventory_hostname }}_{{ ansible_date_time.date }}_{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}.cfg"
 
 # Mode dry-run
