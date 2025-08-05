@@ -20,10 +20,23 @@ Le rôle `simple_firmware_updater` est une version simplifiée du processus de m
 - Ansible 2.9+
 - Collection `arubanetworks.aoscx` installée
 - Accès SSH configuré sur les switches
-- Serveur repository HTTP/HTTPS accessible
-- Pour l'authentification SSH avec mot de passe : `sshpass` installé sur le serveur Ansible
-  - Alternative : Utiliser des clés SSH (recommandé)
-  - Voir VAULT_SETUP.md pour plus de détails
+- Serveur repository accessible
+
+### Pour l'accès au serveur repository
+
+Le rôle doit pouvoir se connecter au serveur repository pour vérifier les firmwares et transférer les sauvegardes.
+
+**Option 1 : Authentification par mot de passe (nécessite sshpass)**
+```bash
+# Installation de sshpass
+sudo yum install sshpass    # RedHat/CentOS
+sudo apt install sshpass    # Debian/Ubuntu
+```
+
+**Option 2 : Authentification par clé SSH (recommandé)**
+```bash
+ssh-copy-id deploy@votre-serveur-repository
+```
 
 ## Variables requises
 
@@ -336,7 +349,33 @@ ok: [switch-01] => {
 }
 ```
 
-## Support
+## Dépannage
+
+### Erreur "you must install the sshpass program"
+
+Cette erreur apparaît lors de la connexion SSH au serveur repository avec un mot de passe.
+
+**Solutions :**
+
+1. **Installer sshpass** (solution rapide) :
+   ```bash
+   sudo yum install sshpass    # RedHat/CentOS
+   sudo apt install sshpass    # Debian/Ubuntu
+   ```
+
+2. **Utiliser des clés SSH** (solution recommandée) :
+   ```bash
+   # Générer une clé si nécessaire
+   ssh-keygen -t rsa -b 4096
+   
+   # Copier la clé sur le serveur repository
+   ssh-copy-id deploy@10.20.3.11
+   
+   # Retirer repository_password du vault
+   ansible-vault edit group_vars/all/vault.yml
+   ```
+
+### Autres problèmes
 
 Pour toute question ou problème, consultez d'abord les logs avec `-vvv` :
 
