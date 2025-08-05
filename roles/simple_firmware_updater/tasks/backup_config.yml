@@ -8,41 +8,16 @@
     mode: '0755'
   delegate_to: localhost
 
-- name: "(backup_config) Récupérer la configuration actuelle via REST API"
-  ansible.builtin.uri:
-    url: "https://{{ ansible_host }}/rest/v10.11/fullconfigs/running-config"
-    method: GET
-    user: "{{ ansible_user }}"
-    password: "{{ ansible_password }}"
-    force_basic_auth: true
-    validate_certs: false
-    headers:
-      Accept: "application/json"
-  register: config_response
-  delegate_to: localhost
+- name: "(backup_config) Sauvegarder la configuration avec aoscx_backup_config"
+  arubanetworks.aoscx.aoscx_backup_config:
+    config_name: "running-config"
+    output_file: "{{ remote_temp_dir }}/{{ backup_filename }}"
+  register: backup_result
 
-- name: "(backup_config) Extraire la configuration du JSON"
-  ansible.builtin.set_fact:
-    running_config_content: "{{ config_response.json }}"
-
-- name: "(backup_config) Sauvegarder la configuration en format JSON"
-  ansible.builtin.copy:
-    content: "{{ running_config_content | to_nice_json }}"
-    dest: "{{ remote_temp_dir }}/{{ backup_filename }}.json"
-    mode: '0644'
-  delegate_to: localhost
-
-- name: "(backup_config) Sauvegarder la configuration en format texte si disponible"
-  ansible.builtin.copy:
-    content: |
-      # Configuration backup for {{ inventory_hostname }}
-      # Date: {{ hostvars['localhost']['global_timestamp'] | default('manual') }}
-      # Version: {{ primary_version | default('unknown') }}
-      
-      {{ running_config_content | to_nice_json }}
-    dest: "{{ remote_temp_dir }}/{{ backup_filename }}"
-    mode: '0644'
-  delegate_to: localhost
+- name: "(backup_config) Vérifier que la sauvegarde a réussi"
+  ansible.builtin.debug:
+    msg: "✓ Configuration sauvegardée avec succès"
+  when: backup_result is succeeded
 
 - name: "(backup_config) Vérifier la sauvegarde locale"
   ansible.builtin.stat:
@@ -73,6 +48,33 @@
   when:
     - repository_server | length > 0
     - dry_run | bool
+
+- name: "(backup_config) Créer le fichier de métadonnées"
+  ansible.builtin.copy:
+    content: |
+      {
+        "backup_date": "{{ hostvars['localhost']['global_timestamp'] | default('manual') }}",
+        "switch_hostname": "{{ inventory_hostname }}",
+        "switch_ip": "{{ ansible_host }}",
+        "firmware_version": "{{ primary_version | default('unknown') }}",
+        "backup_size": {{ backup_stat.stat.size | default(0) }}
+      }
+    dest: "{{ remote_temp_dir }}/{{ backup_filename }}.metadata.json"
+    mode: '0644'
+  delegate_to: localhost
+  when: backup_stat.stat.exists | default(false)
+
+- name: "(backup_config) Transférer les métadonnées vers le serveur repository"
+  ansible.builtin.copy:
+    src: "{{ remote_temp_dir }}/{{ backup_filename }}.metadata.json"
+    dest: "{{ backup_path }}/{{ backup_filename }}.metadata.json"
+    mode: '0644'
+  delegate_to: "{{ repository_server }}"
+  become: true
+  when: 
+    - repository_server | length > 0
+    - not (dry_run | bool)
+    - backup_stat.stat.exists | default(false)
 
 - name: "(backup_config) Afficher le résumé de la sauvegarde"
   ansible.builtin.debug:
