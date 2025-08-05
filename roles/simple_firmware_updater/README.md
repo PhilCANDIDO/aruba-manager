@@ -265,8 +265,9 @@ ansible-playbook update_simple.yml --tags "validate"
 ### 6. Redémarrage (`reboot_switch.yml`)
 - Configure le boot sur la partition primary avec `aoscx_boot_firmware`
 - Si nécessaire, force le redémarrage via l'API REST `/system/reboot`
-- Attend que le switch soit inaccessible puis accessible à nouveau
-- Attend la reconnexion (timeout: 15 minutes)
+- Attend que le port HTTPS (443) soit inaccessible puis accessible à nouveau
+- Vérifie la connectivité API avec `aoscx_facts`
+- Attend la reconnexion complète (timeout: 15 minutes)
 
 ### 7. Validation (`validate_version.yml`)
 - Vérifie la version après redémarrage
@@ -413,6 +414,13 @@ Le module `aoscx_boot_firmware` configure la partition de boot mais ne force pas
 - Si la partition est déjà configurée, aucun redémarrage n'est déclenché
 
 Le rôle utilise l'API REST `/system/reboot` comme solution de secours pour forcer le redémarrage si nécessaire.
+
+### Erreur de connexion pendant le redémarrage
+
+Si vous obtenez "ConnectionRefusedError" ou "unable to connect to socket" pendant le redémarrage :
+- C'est normal, le switch est en train de redémarrer
+- Le rôle attend maintenant sur le port HTTPS (443) au lieu de SSH (22)
+- La pause locale évite de maintenir une connexion active pendant le redémarrage
 
 ### Autres problèmes
 

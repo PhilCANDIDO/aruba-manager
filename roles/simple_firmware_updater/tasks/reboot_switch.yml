@@ -40,7 +40,7 @@
 - name: "(reboot_switch) Attendre que le switch soit inaccessible"
   ansible.builtin.wait_for:
     host: "{{ ansible_host }}"
-    port: 22
+    port: 443
     state: stopped
     delay: 10
     timeout: 120
@@ -49,21 +49,25 @@
 - name: "(reboot_switch) Attendre que le switch redémarre complètement"
   ansible.builtin.wait_for:
     host: "{{ ansible_host }}"
-    port: 22
+    port: 443
     state: started
     delay: 60
     timeout: "{{ reboot_timeout }}"
   delegate_to: localhost
 
 - name: "(reboot_switch) Pause supplémentaire pour stabilisation"
-  ansible.builtin.pause:
-    seconds: 60
-    prompt: "Attente de la stabilisation complète du switch..."
-
-- name: "(reboot_switch) Vérifier la connectivité SSH"
-  ansible.builtin.wait_for_connection:
-    delay: 10
-    timeout: 180
+  ansible.builtin.wait_for:
+    timeout: 60
+  delegate_to: localhost
+  
+- name: "(reboot_switch) Vérifier la connectivité API"
+  arubanetworks.aoscx.aoscx_facts:
+    gather_subset:
+      - platform_name
+  register: connectivity_test
+  retries: 5
+  delay: 10
+  until: connectivity_test is succeeded
 
 - name: "(reboot_switch) Calculer la durée du redémarrage"
   ansible.builtin.set_fact:
