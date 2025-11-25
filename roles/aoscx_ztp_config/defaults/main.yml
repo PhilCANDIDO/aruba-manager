@@ -3,7 +3,7 @@
 # These can be overridden in inventory or playbook vars
 
 # ZTP Initial Connection
-# ztp_initial_password:  # Password to set on factory-reset switch (required if switch is in factory state)
+# aruba_password:  # Password to set on factory-reset switch (stored in vault, required for ZTP)
 
 # VLAN IDs
 # pc_vlan:

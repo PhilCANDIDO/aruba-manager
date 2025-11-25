@@ -5,6 +5,6 @@
   aoscx_ztp_auth:
     hostname: "{{ ansible_host }}"
     username: admin
-    password: "{{ ztp_initial_password }}"
+    password: "{{ aruba_password }}"
   delegate_to: localhost
-  when: ztp_initial_password is defined
+  when: aruba_password is defined
