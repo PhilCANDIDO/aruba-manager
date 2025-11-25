@@ -50,3 +50,10 @@
     - management
     - mgmt
     - routing
+
+- name: Include report generation tasks
+  include_tasks: 07_report.yml
+  tags:
+    - report
+    - reporting
+    - csv

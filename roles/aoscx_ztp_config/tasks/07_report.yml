@@ -1,0 +1,88 @@
+---
+# Generate CSV report and upload to TFTP server
+
+- name: (report) Check if tftp_server group exists and has hosts
+  set_fact:
+    tftp_server_available: "{{ groups['tftp_server'] is defined and groups['tftp_server'] | length > 0 }}"
+  run_once: true
+
+- name: (report) Generate ZTP configuration report
+  block:
+    - name: (report) Gather switch facts for report
+      arubanetworks.aoscx.aoscx_facts:
+        gather_subset:
+          - config
+          - system
+      register: switch_facts
+
+    - name: (report) Set timestamp for report
+      set_fact:
+        report_timestamp: "{{ ansible_date_time.iso8601_basic_short }}"
+      run_once: true
+
+    - name: (report) Create CSV report content
+      set_fact:
+        csv_content: |
+          Switch,IP Address,Hostname,Platform,OS Version,Serial Number,Configuration Date,Status
+          {{ inventory_hostname }},{{ ansible_host }},{{ switch_facts.ansible_facts.ansible_net_hostname | default('N/A') }},{{ switch_facts.ansible_facts.ansible_net_model | default('N/A') }},{{ switch_facts.ansible_facts.ansible_net_version | default('N/A') }},{{ switch_facts.ansible_facts.ansible_net_serialnum | default('N/A') }},{{ report_timestamp }},Configured
+
+    - name: (report) Create temporary CSV file locally
+      copy:
+        content: "{{ csv_content }}"
+        dest: "/tmp/ztp_init_{{ inventory_hostname }}_{{ report_timestamp }}.csv"
+      delegate_to: localhost
+
+    - name: (report) Ensure report directory exists on tftp_server
+      file:
+        path: /opt/aruba_reports/init
+        state: directory
+        mode: '0755'
+      delegate_to: "{{ groups['tftp_server'][0] }}"
+      run_once: true
+
+    - name: (report) Copy CSV report to tftp_server
+      copy:
+        src: "/tmp/ztp_init_{{ inventory_hostname }}_{{ report_timestamp }}.csv"
+        dest: "/opt/aruba_reports/init/ztp_init_{{ inventory_hostname }}_{{ report_timestamp }}.csv"
+        mode: '0644'
+      delegate_to: "{{ groups['tftp_server'][0] }}"
+
+    - name: (report) Create consolidated report if multiple switches
+      block:
+        - name: (report) Initialize consolidated report
+          copy:
+            content: "Switch,IP Address,Hostname,Platform,OS Version,Serial Number,Configuration Date,Status\n"
+            dest: "/tmp/ztp_init_consolidated_{{ report_timestamp }}.csv"
+          delegate_to: localhost
+          run_once: true
+
+        - name: (report) Append switch data to consolidated report
+          lineinfile:
+            path: "/tmp/ztp_init_consolidated_{{ report_timestamp }}.csv"
+            line: "{{ inventory_hostname }},{{ ansible_host }},{{ switch_facts.ansible_facts.ansible_net_hostname | default('N/A') }},{{ switch_facts.ansible_facts.ansible_net_model | default('N/A') }},{{ switch_facts.ansible_facts.ansible_net_version | default('N/A') }},{{ switch_facts.ansible_facts.ansible_net_serialnum | default('N/A') }},{{ report_timestamp }},Configured"
+          delegate_to: localhost
+
+        - name: (report) Copy consolidated report to tftp_server
+          copy:
+            src: "/tmp/ztp_init_consolidated_{{ report_timestamp }}.csv"
+            dest: "/opt/aruba_reports/init/ztp_init_consolidated_{{ report_timestamp }}.csv"
+            mode: '0644'
+          delegate_to: "{{ groups['tftp_server'][0] }}"
+          run_once: true
+
+      when: play_hosts | length > 1
+
+    - name: (report) Cleanup temporary files
+      file:
+        path: "{{ item }}"
+        state: absent
+      delegate_to: localhost
+      loop:
+        - "/tmp/ztp_init_{{ inventory_hostname }}_{{ report_timestamp }}.csv"
+        - "/tmp/ztp_init_consolidated_{{ report_timestamp }}.csv"
+
+    - name: (report) Display report location
+      debug:
+        msg: "ZTP report uploaded to {{ groups['tftp_server'][0] }}:/opt/aruba_reports/init/ztp_init_{{ inventory_hostname }}_{{ report_timestamp }}.csv"
+
+  when: tftp_server_available | bool
