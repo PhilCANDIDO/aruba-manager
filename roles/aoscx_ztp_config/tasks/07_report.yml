@@ -18,9 +18,16 @@
           - software_version
       register: switch_facts
 
-    - name: (report) Set timestamp for report
+    - name: (report) Generate timestamp for report
+      command: date +%Y%m%dT%H%M%S
+      register: timestamp_result
+      delegate_to: localhost
+      run_once: true
+      changed_when: false
+
+    - name: (report) Set timestamp variable
       set_fact:
-        report_timestamp: "{{ ansible_date_time.iso8601_basic_short }}"
+        report_timestamp: "{{ timestamp_result.stdout }}"
       run_once: true
 
     - name: (report) Create CSV report content
