@@ -1,0 +1,70 @@
+---
+# RADIUS and TACACS+ authentication configuration tasks
+
+- name: (radius_tacacs) Configure TACACS+ servers
+  arubanetworks.aoscx.aoscx_command:
+    commands:
+      - 'config'
+      - 'tacacs-server host {{ rad1 }}'
+      - 'tacacs-server host {{ rad2 }}'
+      - 'tacacs-server host {{ rad3 }}'
+      - 'tacacs-server key plaintext {{ radius_key }}'
+      - 'aaa group server tacacs CD05_TACACS'
+      - 'server {{ rad1 }}'
+      - 'server {{ rad2 }}'
+      - 'server {{ rad3 }}'
+      - 'aaa authentication login default group CD05_TACACS local'
+      - 'aaa authentication login ssh group CD05_TACACS local'
+      - 'aaa accounting all-mgmt default start-stop group CD05_TACACS'
+      - 'aaa authentication login https-server group local'
+  tags: tacacs
+  vars:
+    ansible_connection: network_cli
+
+- name: (radius_tacacs) Configure RADIUS servers
+  arubanetworks.aoscx.aoscx_command:
+    commands:
+      - 'config'
+      - 'radius-server host {{ rad1 }}'
+      - 'radius-server host {{ rad2 }}'
+      - 'radius-server host {{ rad3 }}'
+      - 'radius-server host {{ rad1 }} key plaintext {{ radius_key }}'
+      - 'radius-server host {{ rad2 }} key plaintext {{ radius_key }}'
+      - 'radius-server host {{ rad3 }} key plaintext {{ radius_key }}'
+      - 'aaa group server radius RADIUS'
+      - 'server {{ rad1 }}'
+      - 'server {{ rad2}}'
+      - 'server {{ rad3 }}'
+      - 'aaa accounting port-access start-stop interim group RADIUS'
+      - 'radius dyn-authorization client {{ rad1 }} secret-key plaintext {{ radius_key }}'
+      - 'radius dyn-authorization client {{ rad2 }} secret-key plaintext {{ radius_key }}'
+      - 'radius dyn-authorization client {{ rad3 }} secret-key plaintext {{ radius_key }}'
+      - 'radius dyn-authorization enable'
+      - 'aaa authentication port-access dot1x authenticator'
+      - 'radius server-group RADIUS'
+      - 'enable'
+      - 'aaa authentication port-access mac-auth'
+      - 'radius server-group RADIUS'
+      - 'enable'
+  tags: radius
+  vars:
+    ansible_connection: network_cli
+
+- name: (radius_tacacs) Attach authentication to interfaces
+  arubanetworks.aoscx.aoscx_command:
+    commands:
+      - 'config'
+      - 'int 1/1/1-1/1/47'
+      - 'vlan access 1'
+      - 'aaa authentication port-access client-limit 2'
+      - 'aaa authentication port-access dot1x authenticator'
+      - 'eapol-timeout 5'
+      - 'initial-auth-response-timeout 30'
+      - 'max-eapol-requests 3'
+      - 'max-retries 3'
+      - 'enable'
+      - 'aaa authentication port-access mac-auth'
+      - 'enable'
+  tags: radius
+  vars:
+    ansible_connection: network_cli

@@ -1,0 +1,10 @@
+---
+# Initial ZTP connection - Set password on factory-reset switch
+
+- name: (ztp_init_connection) Configure initial password on factory switch
+  aoscx_ztp_auth:
+    hostname: "{{ ansible_host }}"
+    username: admin
+    password: "{{ ztp_initial_password }}"
+  delegate_to: localhost
+  when: ztp_initial_password is defined

@@ -1,0 +1,10 @@
+---
+## REMINDER : PORT 51 OU 52 avec GBIC BASE T AVANT EXECUTION DU SCRIPT
+## PENSEZ A MODIFIER LES PARAMETRES DU SCRIPTS DANS L'INVENTAIRE Switches.ini
+
+- name: Zero Touch Provisioning - Initialize Factory Switch
+  hosts: switches_aruba_test
+  gather_facts: no
+
+  roles:
+    - aoscx_ztp_config

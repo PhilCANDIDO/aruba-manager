@@ -1,0 +1,24 @@
+---
+# Aruba Central and Spanning Tree configuration tasks
+
+- name: (aruba_central_stp) Disable Aruba Central
+  arubanetworks.aoscx.aoscx_command:
+    commands:
+      - 'config'
+      - 'aruba-central'
+      - 'disable'
+  vars:
+    ansible_connection: network_cli
+
+- name: (aruba_central_stp) Configure Spanning Tree RPVST
+  arubanetworks.aoscx.aoscx_command:
+    commands:
+      - 'config'
+      - 'spanning-tree mode rpvst'
+      - 'int 1/1/1-1/1/47'
+      - 'spanning-tree bpdu-guard'
+      - 'spanning-tree port-type admin-edge'
+      - 'loop-protect'
+      - 'loop-protect action tx-rx-disable'
+  vars:
+    ansible_connection: network_cli

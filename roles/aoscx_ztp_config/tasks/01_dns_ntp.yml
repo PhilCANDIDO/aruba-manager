@@ -1,0 +1,23 @@
+---
+# DNS and NTP configuration tasks
+
+- name: (dns_ntp) Configure DNS servers
+  arubanetworks.aoscx.aoscx_dns:
+    name_servers:
+      "0": "10.20.1.2"
+      "1": "10.20.1.3"
+    domain_name: "cg05.lan"
+    vrf: "default"
+  tags: dns
+
+- name: (dns_ntp) Configure NTP and timezone
+  arubanetworks.aoscx.aoscx_command:
+    commands:
+      - 'config'
+      - 'ntp enable'
+      - 'ntp server ntp.cg05.lan'
+      - 'clock timezone europe/paris'
+      - 'no cdp enable'
+  tags: ntp
+  vars:
+    ansible_connection: network_cli

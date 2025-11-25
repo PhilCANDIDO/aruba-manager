@@ -1,0 +1,22 @@
+---
+# Role metadata
+galaxy_info:
+  author: Your Organization
+  description: Zero Touch Provisioning configuration for Aruba AOSCX switches
+  company: Conseil Departemental des Hautes-Alpes
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.9"
+
+  platforms:
+    - name: ArubaOS-CX
+      versions:
+        - all
+
+  galaxy_tags:
+    - networking
+    - aruba
+    - aoscx
+    - ztp
+    - switches
+
+dependencies: []

@@ -1,0 +1,245 @@
+## REMINDER : PORT 51 OU 52 avec GBIC BASE T AVANT EXECUTION DU SCRIPT
+## PENSEZ A MODIFIER LES PARAMETRES DU SCRIPTS DANS L'INVENTAIRE Switches.ini
+- name: NTP/DNS SETUP
+  hosts: switches_aruba_test
+  gather_facts: no
+
+  tasks :
+  - name: DNS
+    arubanetworks.aoscx.aoscx_dns:
+      name_servers:
+        "0": "10.20.1.2"
+        "1": "10.20.1.3"
+      domain_name: "cg05.lan"
+      vrf: "default"
+    tags: dns
+
+  - name: NTP
+    arubanetworks.aoscx.aoscx_command:
+      commands: ['config',
+                 'ntp enable',
+                 'ntp server ntp.cg05.lan',
+                 'clock timezone europe/paris',
+                 'no cdp enable',
+                ]
+    tags: ntp
+    vars:
+      ansible_connection: network_cli
+
+- name: Create VLAN
+  hosts: switches_aruba_test
+  gather_facts: no
+
+  tasks : 
+  - name: Add PC VLAN
+    arubanetworks.aoscx.aoscx_vlan:
+      vlan_id: "{{ pc_vlan }}"
+      name: PC
+      description: Vlan PC
+  - name: Add PC Admin
+    arubanetworks.aoscx.aoscx_vlan:
+      vlan_id: "{{ pc_admin }}"
+      name: PC_Admin
+      description: Vlan PC admin
+  - name: Add TOIP
+    arubanetworks.aoscx.aoscx_vlan:
+      vlan_id: "{{ toip }}"
+      name: TOIP
+      description: Vlan TOIP
+  - name: Add IMPR
+    arubanetworks.aoscx.aoscx_vlan:
+      vlan_id: "{{ impr }}"
+      name: IMPR
+      description: Vlan Imprimantes
+  - name: Add PRIV
+    arubanetworks.aoscx.aoscx_vlan:
+      vlan_id: "{{ priv }}"
+      name: PRIV
+      description: Vlan PRIV
+  - name: Add SECU
+    arubanetworks.aoscx.aoscx_vlan:
+      vlan_id: "{{ secu }}"
+      name: SECU
+      description: Vlan Secu
+  - name: Add GTC
+    arubanetworks.aoscx.aoscx_vlan:
+      vlan_id: "{{ gtc }}"
+      name: GTC
+      description: Vlan GTC
+  - name: Add RSO
+    arubanetworks.aoscx.aoscx_vlan:
+      vlan_id: "{{ rso }}"
+      name: RSO
+      description: Vlan admin Rso
+  - name: Add RSO WIFI
+    arubanetworks.aoscx.aoscx_vlan:
+      vlan_id: "{{ adm_wifi }}"
+      name: RSO_WIFI
+      description: Vlan adm Wifi
+  - name: Add Wifi_Perm
+    arubanetworks.aoscx.aoscx_vlan:
+      vlan_id: "{{ wifi_perm }}"
+      name: WIFI_PERM
+      description: Vlan Data Wifi
+  - name: Add voice atribute
+    arubanetworks.aoscx.aoscx_command:
+      commands: ['config',
+                 'vlan {{ toip }}'
+                  ,'voice']
+    vars:
+      ansible_connection: network_cli
+
+- name: Cut Aruba Central + SPT
+  hosts: switches_aruba_test
+  gather_facts: no
+
+  tasks:
+  - name: disable Aruba Central
+    arubanetworks.aoscx.aoscx_command:
+      commands: ['config',
+                 'aruba-central'
+                  ,'disable']
+    vars:
+      ansible_connection: network_cli
+  - name: SetUp Span RPVST
+    arubanetworks.aoscx.aoscx_command:
+      commands: ['config',
+                 'spanning-tree mode rpvst',
+                 'int 1/1/1-1/1/47',
+                 'spanning-tree bpdu-guard',
+                 'spanning-tree port-type admin-edge',
+                 'loop-protect',
+                 'loop-protect action tx-rx-disable'
+                 ]
+    vars:
+      ansible_connection: network_cli
+
+- name: Radius + Tacacs SetUp
+  hosts: switches_aruba_test
+  gather_facts: no
+
+  tasks:
+  - name: Add Tacacs+
+    arubanetworks.aoscx.aoscx_command:
+      commands: ['config',
+                 'tacacs-server host {{ rad1 }}',
+                 'tacacs-server host {{ rad2 }}',
+                 'tacacs-server host {{ rad3 }}',
+                 'tacacs-server key plaintext {{ radius_key }}',
+                 'aaa group server tacacs CD05_TACACS',
+                 'server {{ rad1 }}',
+                 'server {{ rad2 }}',
+                 'server {{ rad3 }}',
+                 'aaa authentication login default group CD05_TACACS local',
+                 'aaa authentication login ssh group CD05_TACACS local',
+                 'aaa accounting all-mgmt default start-stop group CD05_TACACS',
+                 'aaa authentication login https-server group local']
+    tags: tacacs
+    vars:
+      ansible_connection: network_cli
+
+  - name: Add RADIUS
+    arubanetworks.aoscx.aoscx_command:
+      commands: ['config',
+                  'radius-server host {{ rad1 }}',
+                  'radius-server host {{ rad2 }}',
+                  'radius-server host {{ rad3 }}',
+                  'radius-server host {{ rad1 }} key plaintext {{ radius_key }}',
+                  'radius-server host {{ rad2 }} key plaintext {{ radius_key }}',
+                  'radius-server host {{ rad3 }} key plaintext {{ radius_key }}',
+                  'aaa group server radius RADIUS',
+                  'server {{ rad1 }}',
+                  'server {{ rad2}}',
+                  'server {{ rad3 }}',
+                  'aaa accounting port-access start-stop interim group RADIUS',
+                  'radius dyn-authorization client {{ rad1 }} secret-key plaintext {{ radius_key }}',
+                  'radius dyn-authorization client {{ rad2 }} secret-key plaintext {{ radius_key }}',
+                  'radius dyn-authorization client {{ rad3 }} secret-key plaintext {{ radius_key }}',
+                  'radius dyn-authorization enable',
+                  'aaa authentication port-access dot1x authenticator',
+                  'radius server-group RADIUS',
+                  'enable',
+                  'aaa authentication port-access mac-auth',
+                  'radius server-group RADIUS',
+                  'enable']
+    tags: radius
+    vars:
+     ansible_connection: network_cli
+
+  - name: Attach Interfaces
+    arubanetworks.aoscx.aoscx_command:
+      commands: ['config',
+                 'int 1/1/1-1/1/47',
+                 'vlan access 1',
+                 'aaa authentication port-access client-limit 2',
+                 'aaa authentication port-access dot1x authenticator',
+                 'eapol-timeout 5',
+                 'initial-auth-response-timeout 30',
+                 'max-eapol-requests 3',
+                 'max-retries 3',
+                 'enable',
+                 'aaa authentication port-access mac-auth',
+                 'enable']
+    tags: radius1
+    vars:
+      ansible_connection: network_cli
+
+#--- Interface 1/1/48 + 1/1/49 + 1/1/50 en full trunk pour couvrir l'ensemble des usages ---#
+- name: SetUp Interfaces Rocades
+  hosts: switches_aruba_test
+  gather_facts: no
+
+  tasks:
+  - name: Configure Interface 1/1/48
+    arubanetworks.aoscx.aoscx_l2_interface:
+      interface: 1/1/48
+      vlan_mode: trunk
+      trunk_allowed_all: True
+      native_vlan_id: "{{ pc_vlan }}"
+      description: 'Rocade'
+  - name: Configure Interface 1/1/49
+    arubanetworks.aoscx.aoscx_l2_interface:
+      interface: 1/1/49
+      vlan_mode: trunk
+      trunk_allowed_all: True
+      native_vlan_id: "{{ pc_vlan }}"
+      description: 'Rocade'
+  - name: Configure Interface 1/1/50
+    arubanetworks.aoscx.aoscx_l2_interface:
+      interface: 1/1/50
+      vlan_mode: trunk
+      trunk_allowed_all: True
+      native_vlan_id: "{{ pc_vlan }}"
+      description: 'Rocade'
+
+- name: SNMP_SetUp + MGMT Interface
+  hosts: switches_aruba_test
+  gather_facts: no
+
+  tasks: 
+
+  - name: SNMP + IP + default route
+    arubanetworks.aoscx.aoscx_command:
+      commands: ['config',
+                'snmp-server vrf default',
+                'snmp-server snmpv3-only',
+                'snmpv3 user supcd05 auth sha auth-pass plaintext {{ snmp_key }} priv aes priv-pass plaintext {{ snmp_encrypt }}']
+    tags: snmp
+    vars:
+     ansible_connection: network_cli
+  - name: TargetIP
+    arubanetworks.aoscx.aoscx_command:
+      commands: ['config',
+                'interface vlan {{ rso }}',
+                'ip address {{ target_ip }}/16']
+    tags: targetIP
+    vars:
+     ansible_connection: network_cli
+  - name: Default Route
+    arubanetworks.aoscx.aoscx_command:
+      commands: ['config',
+                'ip route 0.0.0.0/0 {{ site_gateway }}',
+                ]
+    tags: route
+    vars:
+     ansible_connection: network_cli

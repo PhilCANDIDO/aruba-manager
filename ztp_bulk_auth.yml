@@ -1,0 +1,21 @@
+---
+# Bulk ZTP Authentication for multiple factory switches
+# Use this with inventory/factory_switches.yml
+
+- name: Bulk ZTP Authentication Setup
+  hosts: factory_switches
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Configure authentication on factory-reset switches
+      aoscx_ztp_auth:
+        hostname: "{{ ansible_host }}"
+        username: "{{ ztp_username | default('admin') }}"
+        password: "{{ ztp_password }}"
+      register: ztp_result
+      delegate_to: localhost
+
+    - name: Display results
+      debug:
+        msg: "{{ inventory_hostname }}: {{ ztp_result.msg }}"

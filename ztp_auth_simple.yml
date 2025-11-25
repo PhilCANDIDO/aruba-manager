@@ -1,0 +1,56 @@
+---
+# Simple ZTP Authentication Test
+# Use this to test authentication on a single factory-reset switch
+#
+# USAGE:
+#   ansible-playbook ztp_auth_simple.yml \
+#     -e "switch_ip=192.168.1.100" \
+#     -e "new_password=YourSecureP@ss!"
+#
+# REQUIRED VARIABLES:
+#   switch_ip      - IP address of the factory-reset switch
+#   new_password   - Password to set on the switch
+
+- name: ZTP Initial Authentication
+  hosts: localhost
+  gather_facts: no
+
+  tasks:
+    - name: Validate required variable - switch_ip
+      assert:
+        that:
+          - switch_ip is defined
+          - switch_ip | length > 0
+        fail_msg: |
+          ERROR: Variable 'switch_ip' is required but not provided.
+
+          Usage:
+            ansible-playbook ztp_auth_simple.yml \
+              -e "switch_ip=192.168.1.100" \
+              -e "new_password=YourPassword"
+        success_msg: "Variable 'switch_ip' is defined: {{ switch_ip }}"
+
+    - name: Validate required variable - new_password
+      assert:
+        that:
+          - new_password is defined
+          - new_password | length > 0
+        fail_msg: |
+          ERROR: Variable 'new_password' is required but not provided.
+
+          Usage:
+            ansible-playbook ztp_auth_simple.yml \
+              -e "switch_ip=192.168.1.100" \
+              -e "new_password=YourPassword"
+        success_msg: "Variable 'new_password' is defined"
+
+    - name: Configure authentication on factory-reset switch
+      aoscx_ztp_auth:
+        hostname: "{{ switch_ip }}"
+        username: admin
+        password: "{{ new_password }}"
+      register: result
+
+    - name: Show result
+      debug:
+        var: result

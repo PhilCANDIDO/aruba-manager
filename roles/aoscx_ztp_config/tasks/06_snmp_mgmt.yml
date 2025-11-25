@@ -1,0 +1,32 @@
+---
+# SNMP and Management interface configuration tasks
+
+- name: (snmp_mgmt) Configure SNMP
+  arubanetworks.aoscx.aoscx_command:
+    commands:
+      - 'config'
+      - 'snmp-server vrf default'
+      - 'snmp-server snmpv3-only'
+      - 'snmpv3 user supcd05 auth sha auth-pass plaintext {{ snmp_key }} priv aes priv-pass plaintext {{ snmp_encrypt }}'
+  tags: snmp
+  vars:
+    ansible_connection: network_cli
+
+- name: (snmp_mgmt) Configure management IP address
+  arubanetworks.aoscx.aoscx_command:
+    commands:
+      - 'config'
+      - 'interface vlan {{ rso }}'
+      - 'ip address {{ target_ip }}/16'
+  tags: targetIP
+  vars:
+    ansible_connection: network_cli
+
+- name: (snmp_mgmt) Configure default route
+  arubanetworks.aoscx.aoscx_command:
+    commands:
+      - 'config'
+      - 'ip route 0.0.0.0/0 {{ site_gateway }}'
+  tags: route
+  vars:
+    ansible_connection: network_cli

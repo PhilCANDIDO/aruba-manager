@@ -1,0 +1,71 @@
+---
+# VLAN configuration tasks
+
+- name: (vlans) Add PC VLAN
+  arubanetworks.aoscx.aoscx_vlan:
+    vlan_id: "{{ pc_vlan }}"
+    name: PC
+    description: Vlan PC
+
+- name: (vlans) Add PC Admin VLAN
+  arubanetworks.aoscx.aoscx_vlan:
+    vlan_id: "{{ pc_admin }}"
+    name: PC_Admin
+    description: Vlan PC admin
+
+- name: (vlans) Add TOIP VLAN
+  arubanetworks.aoscx.aoscx_vlan:
+    vlan_id: "{{ toip }}"
+    name: TOIP
+    description: Vlan TOIP
+
+- name: (vlans) Add IMPR VLAN
+  arubanetworks.aoscx.aoscx_vlan:
+    vlan_id: "{{ impr }}"
+    name: IMPR
+    description: Vlan Imprimantes
+
+- name: (vlans) Add PRIV VLAN
+  arubanetworks.aoscx.aoscx_vlan:
+    vlan_id: "{{ priv }}"
+    name: PRIV
+    description: Vlan PRIV
+
+- name: (vlans) Add SECU VLAN
+  arubanetworks.aoscx.aoscx_vlan:
+    vlan_id: "{{ secu }}"
+    name: SECU
+    description: Vlan Secu
+
+- name: (vlans) Add GTC VLAN
+  arubanetworks.aoscx.aoscx_vlan:
+    vlan_id: "{{ gtc }}"
+    name: GTC
+    description: Vlan GTC
+
+- name: (vlans) Add RSO VLAN
+  arubanetworks.aoscx.aoscx_vlan:
+    vlan_id: "{{ rso }}"
+    name: RSO
+    description: Vlan admin Rso
+
+- name: (vlans) Add RSO WIFI VLAN
+  arubanetworks.aoscx.aoscx_vlan:
+    vlan_id: "{{ adm_wifi }}"
+    name: RSO_WIFI
+    description: Vlan adm Wifi
+
+- name: (vlans) Add Wifi_Perm VLAN
+  arubanetworks.aoscx.aoscx_vlan:
+    vlan_id: "{{ wifi_perm }}"
+    name: WIFI_PERM
+    description: Vlan Data Wifi
+
+- name: (vlans) Set voice attribute on TOIP VLAN
+  arubanetworks.aoscx.aoscx_command:
+    commands:
+      - 'config'
+      - 'vlan {{ toip }}'
+      - 'voice'
+  vars:
+    ansible_connection: network_cli

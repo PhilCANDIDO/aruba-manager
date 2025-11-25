@@ -1,0 +1,52 @@
+---
+# Main tasks file for aoscx_ztp_config role
+# This file includes all task files in the proper order
+
+- name: Include ZTP initial connection tasks
+  include_tasks: 00_ztp_init_connection.yml
+  tags:
+    - ztp_init
+    - ztp_auth
+    - initial_password
+
+- name: Include DNS/NTP configuration tasks
+  include_tasks: 01_dns_ntp.yml
+  tags:
+    - dns
+    - ntp
+    - dns_ntp
+
+- name: Include VLAN configuration tasks
+  include_tasks: 02_vlans.yml
+  tags:
+    - vlans
+
+- name: Include Aruba Central and Spanning Tree tasks
+  include_tasks: 03_aruba_central_stp.yml
+  tags:
+    - aruba_central
+    - stp
+    - spanning_tree
+
+- name: Include RADIUS and TACACS+ configuration tasks
+  include_tasks: 04_radius_tacacs.yml
+  tags:
+    - radius
+    - tacacs
+    - aaa
+    - authentication
+
+- name: Include trunk interface configuration tasks
+  include_tasks: 05_trunk_interfaces.yml
+  tags:
+    - trunk
+    - interfaces
+    - rocades
+
+- name: Include SNMP and management configuration tasks
+  include_tasks: 06_snmp_mgmt.yml
+  tags:
+    - snmp
+    - management
+    - mgmt
+    - routing

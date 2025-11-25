@@ -1,0 +1,35 @@
+---
+# Default variables for aoscx_ztp_config role
+# These can be overridden in inventory or playbook vars
+
+# ZTP Initial Connection
+# ztp_initial_password:  # Password to set on factory-reset switch (required if switch is in factory state)
+
+# VLAN IDs
+# pc_vlan:
+# pc_admin:
+# toip:
+# impr:
+# priv:
+# secu:
+# gtc:
+# rso:
+# adm_wifi:
+# wifi_perm:
+
+# RADIUS/TACACS servers
+# rad1:
+# rad2:
+# rad3:
+# radius_key:
+
+# SNMP configuration
+# snmp_key:
+# snmp_encrypt:
+
+# Management network
+# target_ip:
+# site_gateway:
+
+# Note: All variables should be defined in inventory or group_vars
+# These are intentionally commented out to force explicit configuration

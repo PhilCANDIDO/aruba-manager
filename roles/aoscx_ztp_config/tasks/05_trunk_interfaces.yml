@@ -1,0 +1,26 @@
+---
+# Trunk/Uplink interface configuration tasks (Rocades)
+
+- name: (trunk_interfaces) Configure Interface 1/1/48 as trunk
+  arubanetworks.aoscx.aoscx_l2_interface:
+    interface: 1/1/48
+    vlan_mode: trunk
+    trunk_allowed_all: True
+    native_vlan_id: "{{ pc_vlan }}"
+    description: 'Rocade'
+
+- name: (trunk_interfaces) Configure Interface 1/1/49 as trunk
+  arubanetworks.aoscx.aoscx_l2_interface:
+    interface: 1/1/49
+    vlan_mode: trunk
+    trunk_allowed_all: True
+    native_vlan_id: "{{ pc_vlan }}"
+    description: 'Rocade'
+
+- name: (trunk_interfaces) Configure Interface 1/1/50 as trunk
+  arubanetworks.aoscx.aoscx_l2_interface:
+    interface: 1/1/50
+    vlan_mode: trunk
+    trunk_allowed_all: True
+    native_vlan_id: "{{ pc_vlan }}"
+    description: 'Rocade'

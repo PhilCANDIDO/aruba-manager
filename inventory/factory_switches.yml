@@ -1,0 +1,18 @@
+---
+# Inventory for factory-reset switches requiring ZTP authentication
+# These switches have not yet been configured with passwords
+
+factory_switches:
+  hosts:
+    switch-factory-01:
+      ansible_host: 192.168.1.100
+      ztp_password: "NewP@ssw0rd1!"
+
+    # switch-factory-02:
+    #   ansible_host: 192.168.1.101
+    #   ztp_password: "NewP@ssw0rd2!"
+
+  vars:
+    ztp_username: admin
+    # You can use Ansible Vault to encrypt passwords
+    # ansible-vault encrypt_string 'password' --name 'ztp_password'

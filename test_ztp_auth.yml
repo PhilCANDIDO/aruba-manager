@@ -1,0 +1,45 @@
+---
+# Test playbook for ZTP authentication
+# This playbook tests the initial authentication setup on factory-reset switches
+
+- name: Test ZTP Authentication
+  hosts: localhost
+  gather_facts: no
+
+  vars_prompt:
+    - name: switch_ip
+      prompt: "Enter the switch IP address"
+      private: no
+    - name: new_password
+      prompt: "Enter the new password for the switch"
+      private: yes
+      confirm: yes
+
+  tasks:
+    - name: Initialize switch authentication via ZTP
+      aoscx_ztp_auth:
+        hostname: "{{ switch_ip }}"
+        username: admin
+        password: "{{ new_password }}"
+      register: ztp_result
+
+    - name: Display result
+      debug:
+        msg: "{{ ztp_result.msg }}"
+
+    - name: Test connection with new credentials
+      arubanetworks.aoscx.aoscx_command:
+        commands: ['show version']
+      vars:
+        ansible_host: "{{ switch_ip }}"
+        ansible_user: admin
+        ansible_password: "{{ new_password }}"
+        ansible_connection: network_cli
+        ansible_network_os: arubanetworks.aoscx.aoscx
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+      register: version_check
+
+    - name: Display switch version
+      debug:
+        msg: "Switch is accessible! Version info retrieved successfully."
+      when: version_check is success
