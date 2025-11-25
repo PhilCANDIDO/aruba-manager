@@ -12,7 +12,10 @@
       arubanetworks.aoscx.aoscx_facts:
         gather_subset:
           - config
-          - system
+          - domain_name
+          - product_info
+          - software_info
+          - software_version
       register: switch_facts
 
     - name: (report) Set timestamp for report
