@@ -11,12 +11,20 @@
     - name: (report) Gather switch facts for report
       arubanetworks.aoscx.aoscx_facts:
         gather_subset:
-          - config
-          - domain_name
-          - product_info
-          - software_info
-          - software_version
+          - product_info      # Informations produit (modèle, série)
+          - host_name         # Nom d'hôte
+          - platform_name     # Nom de la plateforme
+          - software_version  # Version logicielle
+        gather_network_resources: []
       register: switch_facts
+
+    - name: (report) Extract switch information from facts
+      set_fact:
+        report_hostname: "{{ switch_facts.ansible_facts.ansible_net_hostname | default(inventory_hostname) }}"
+        report_model: "{{ switch_facts.ansible_facts.ansible_net_product_info.get('chassis,1', {}).get('product_name', 'N/A') }}"
+        report_serial: "{{ switch_facts.ansible_facts.ansible_net_product_info.get('chassis,1', {}).get('serial_number', 'N/A') }}"
+        report_version: "{{ switch_facts.ansible_facts.ansible_net_software_version | default('N/A') }}"
+        report_platform: "{{ switch_facts.ansible_facts.ansible_net_platform_name | default('N/A') }}"
 
     - name: (report) Generate timestamp for report
       command: date +%Y%m%dT%H%M%S
@@ -33,8 +41,8 @@
     - name: (report) Create CSV report content
       set_fact:
         csv_content: |
-          Switch,IP Address,Hostname,Platform,OS Version,Serial Number,Configuration Date,Status
-          {{ inventory_hostname }},{{ ansible_host }},{{ switch_facts.ansible_facts.ansible_net_hostname | default('N/A') }},{{ switch_facts.ansible_facts.ansible_net_model | default('N/A') }},{{ switch_facts.ansible_facts.ansible_net_version | default('N/A') }},{{ switch_facts.ansible_facts.ansible_net_serialnum | default('N/A') }},{{ report_timestamp }},Configured
+          Switch,IP Address,Hostname,Platform,Model,OS Version,Serial Number,Configuration Date,Status
+          {{ inventory_hostname }},{{ ansible_host }},{{ report_hostname }},{{ report_platform }},{{ report_model }},{{ report_version }},{{ report_serial }},{{ report_timestamp }},Configured
 
     - name: (report) Create temporary CSV file locally
       copy:
@@ -62,7 +70,7 @@
       block:
         - name: (report) Initialize consolidated report
           copy:
-            content: "Switch,IP Address,Hostname,Platform,OS Version,Serial Number,Configuration Date,Status\n"
+            content: "Switch,IP Address,Hostname,Platform,Model,OS Version,Serial Number,Configuration Date,Status\n"
             dest: "/tmp/ztp_init_consolidated_{{ report_timestamp }}.csv"
           delegate_to: "{{ groups['tftp_server'][0] }}"
           run_once: true
@@ -70,7 +78,7 @@
         - name: (report) Append switch data to consolidated report
           lineinfile:
             path: "/tmp/ztp_init_consolidated_{{ report_timestamp }}.csv"
-            line: "{{ inventory_hostname }},{{ ansible_host }},{{ switch_facts.ansible_facts.ansible_net_hostname | default('N/A') }},{{ switch_facts.ansible_facts.ansible_net_model | default('N/A') }},{{ switch_facts.ansible_facts.ansible_net_version | default('N/A') }},{{ switch_facts.ansible_facts.ansible_net_serialnum | default('N/A') }},{{ report_timestamp }},Configured"
+            line: "{{ inventory_hostname }},{{ ansible_host }},{{ report_hostname }},{{ report_platform }},{{ report_model }},{{ report_version }},{{ report_serial }},{{ report_timestamp }},Configured"
           delegate_to: "{{ groups['tftp_server'][0] }}"
 
         - name: (report) Copy consolidated report to tftp_server
