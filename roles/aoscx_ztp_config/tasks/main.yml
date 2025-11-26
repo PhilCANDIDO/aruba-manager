@@ -5,6 +5,7 @@
 - name: Include ZTP initial connection tasks
   include_tasks: 00_ztp_init_connection.yml
   tags:
+    - always
     - ztp_init
     - ztp_auth
     - initial_password
@@ -12,6 +13,7 @@
 - name: Include DNS/NTP configuration tasks
   include_tasks: 01_dns_ntp.yml
   tags:
+    - always
     - dns
     - ntp
     - dns_ntp
@@ -19,11 +21,13 @@
 - name: Include VLAN configuration tasks
   include_tasks: 02_vlans.yml
   tags:
+    - always
     - vlans
 
 - name: Include Aruba Central and Spanning Tree tasks
   include_tasks: 03_aruba_central_stp.yml
   tags:
+    - always
     - aruba_central
     - stp
     - spanning_tree
@@ -31,6 +35,7 @@
 - name: Include RADIUS and TACACS+ configuration tasks
   include_tasks: 04_radius_tacacs.yml
   tags:
+    - always
     - radius
     - tacacs
     - aaa
@@ -39,6 +44,7 @@
 - name: Include trunk interface configuration tasks
   include_tasks: 05_trunk_interfaces.yml
   tags:
+    - always
     - trunk
     - interfaces
     - rocades
@@ -46,6 +52,7 @@
 - name: Include SNMP and management configuration tasks
   include_tasks: 06_snmp_mgmt.yml
   tags:
+    - always
     - snmp
     - management
     - mgmt
@@ -54,6 +61,7 @@
 - name: Include report generation tasks
   include_tasks: 07_report.yml
   tags:
+    - never
     - report
     - reporting
     - csv
