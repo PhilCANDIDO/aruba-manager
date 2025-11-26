@@ -55,6 +55,7 @@
         src: "/tmp/ztp_init_{{ inventory_hostname }}_{{ report_timestamp }}.csv"
         dest: "/opt/aruba_reports/init/ztp_init_{{ inventory_hostname }}_{{ report_timestamp }}.csv"
         mode: '0644'
+        remote_src: true
       delegate_to: "{{ groups['tftp_server'][0] }}"
 
     - name: (report) Create consolidated report if multiple switches
@@ -77,6 +78,7 @@
             src: "/tmp/ztp_init_consolidated_{{ report_timestamp }}.csv"
             dest: "/opt/aruba_reports/init/ztp_init_consolidated_{{ report_timestamp }}.csv"
             mode: '0644'
+            remote_src: true
           delegate_to: "{{ groups['tftp_server'][0] }}"
           run_once: true
 
