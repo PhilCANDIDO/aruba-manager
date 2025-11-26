@@ -21,7 +21,7 @@
     - name: (report) Generate timestamp for report
       command: date +%Y%m%dT%H%M%S
       register: timestamp_result
-      delegate_to: localhost
+      delegate_to: "{{ groups['tftp_server'][0] }}"
       run_once: true
       changed_when: false
 
@@ -40,7 +40,7 @@
       copy:
         content: "{{ csv_content }}"
         dest: "/tmp/ztp_init_{{ inventory_hostname }}_{{ report_timestamp }}.csv"
-      delegate_to: localhost
+      delegate_to: "{{ groups['tftp_server'][0] }}"
 
     - name: (report) Ensure report directory exists on tftp_server
       file:
@@ -63,14 +63,14 @@
           copy:
             content: "Switch,IP Address,Hostname,Platform,OS Version,Serial Number,Configuration Date,Status\n"
             dest: "/tmp/ztp_init_consolidated_{{ report_timestamp }}.csv"
-          delegate_to: localhost
+          delegate_to: "{{ groups['tftp_server'][0] }}"
           run_once: true
 
         - name: (report) Append switch data to consolidated report
           lineinfile:
             path: "/tmp/ztp_init_consolidated_{{ report_timestamp }}.csv"
             line: "{{ inventory_hostname }},{{ ansible_host }},{{ switch_facts.ansible_facts.ansible_net_hostname | default('N/A') }},{{ switch_facts.ansible_facts.ansible_net_model | default('N/A') }},{{ switch_facts.ansible_facts.ansible_net_version | default('N/A') }},{{ switch_facts.ansible_facts.ansible_net_serialnum | default('N/A') }},{{ report_timestamp }},Configured"
-          delegate_to: localhost
+          delegate_to: "{{ groups['tftp_server'][0] }}"
 
         - name: (report) Copy consolidated report to tftp_server
           copy:
@@ -86,7 +86,7 @@
       file:
         path: "{{ item }}"
         state: absent
-      delegate_to: localhost
+      delegate_to: "{{ groups['tftp_server'][0] }}"
       loop:
         - "/tmp/ztp_init_{{ inventory_hostname }}_{{ report_timestamp }}.csv"
         - "/tmp/ztp_init_consolidated_{{ report_timestamp }}.csv"
